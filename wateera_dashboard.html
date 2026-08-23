@@ -1,0 +1,1113 @@
+<div id="wateera-root" dir="rtl"></div>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap');
+  #wateera-root{
+    --navy:#142033; --navy2:#1F3350; --paper:#F5F6F4; --teal:#0E7C7B; --blue:#3E6FB0;
+    --amber:#C98A2C; --green:#2F8F5B; --red:#C1443C; --ink:#1B2430; --muted:#6B7280; --line:#E2E5E0;
+    font-family:'IBM Plex Sans Arabic', sans-serif; background:var(--paper); color:var(--ink);
+    min-height:100%; font-size:14px;
+  }
+  #wateera-root .disp{font-family:'Tajawal',sans-serif;}
+  #wateera-root *{box-sizing:border-box;}
+  #wateera-root button, #wateera-root select, #wateera-root input{font-family:inherit;}
+  #wateera-root .card{background:#fff;border:1px solid var(--line);border-radius:14px;}
+  #wateera-root table{width:100%;border-collapse:collapse;font-size:13px;}
+  #wateera-root th{padding:12px 14px;font-weight:700;color:var(--muted);font-size:12px;white-space:nowrap;text-align:right;background:#F7F8F6;}
+  #wateera-root td{padding:12px 14px;border-top:1px solid var(--line);}
+  #wateera-root .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:8px;}
+  #wateera-root .role{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 7px;border-radius:6px;font-weight:700;margin:2px;}
+  #wateera-root .role b{color:#fff;border-radius:4px;width:15px;height:15px;display:inline-flex;align-items:center;justify-content:center;font-size:9.5px;}
+  #wateera-root .linkbtn{display:inline-flex;align-items:center;gap:4px;background:none;border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:11px;cursor:pointer;}
+  #wateera-root .teamchip{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;font-size:13px;font-weight:600;white-space:nowrap;border:1.5px solid rgba(255,255,255,.25);background:transparent;color:#E4E9F0;cursor:pointer;}
+  #wateera-root .teamchip.active{background:#fff;color:var(--navy);border-color:#fff;}
+  #wateera-root .tabbtn{display:flex;align-items:center;gap:6px;padding:8px 14px;border-radius:8px;font-size:13.5px;font-weight:600;border:none;cursor:pointer;background:transparent;color:#D7DEE8;}
+  #wateera-root .tabbtn.active{background:#fff;color:var(--navy);}
+  #wateera-root input[type=text], #wateera-root input[type=date], #wateera-root select{
+    width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--line);font-size:13px;outline:none;background:#fff;
+  }
+  #wateera-root .pulse{position:relative;display:inline-block;border-radius:6px;padding:2px 4px;}
+  #wateera-root .pulse::before{content:'';position:absolute;inset:-3px;border-radius:inherit;border:2px solid var(--red);opacity:.55;animation:wtPulse 1.8s ease-out infinite;}
+  @keyframes wtPulse{0%{opacity:.6;transform:scale(1)}100%{opacity:0;transform:scale(1.12)}}
+  @media (prefers-reduced-motion: reduce){ #wateera-root .pulse::before{animation:none;opacity:.3} }
+  #wateera-root .modal-backdrop{position:fixed;inset:0;background:rgba(20,32,51,.45);display:flex;align-items:center;justify-content:center;padding:16px;z-index:50;}
+  #wateera-root .modal{background:#fff;border-radius:16px;padding:22px;width:100%;max-width:560px;max-height:88vh;overflow-y:auto;}
+  #wateera-root .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  #wateera-root .field{display:flex;flex-direction:column;gap:5px;}
+  #wateera-root .field.full{grid-column:1 / -1;}
+  #wateera-root .field label{font-size:12px;font-weight:600;color:var(--muted);}
+  #wateera-root .statcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px 18px;flex:1;min-width:130px;}
+  #wateera-root .scroller::-webkit-scrollbar{height:6px;width:6px;}
+  #wateera-root .scroller::-webkit-scrollbar-thumb{background:var(--line);border-radius:4px;}
+
+  #wt-print-report{ display:none; }
+  #wt-print-report .rpt-wrap{
+    --navy:#142033; --navy2:#1F3350; --teal:#0E7C7B; --blue:#3E6FB0;
+    --amber:#C98A2C; --green:#2F8F5B; --red:#C1443C; --ink:#1B2430; --muted:#6B7280; --line:#E2E5E0;
+    font-family:'IBM Plex Sans Arabic', Arial, sans-serif; color:var(--ink); direction:rtl; padding:24px;
+  }
+  #wt-print-report .rpt-disp{ font-family:'Tajawal', Arial, sans-serif; }
+  #wt-print-report .rpt-header{ background:var(--navy); color:#fff; padding:20px 22px; border-radius:10px; margin-bottom:18px; }
+  #wt-print-report .rpt-section-title{ font-family:'Tajawal', Arial, sans-serif; font-weight:800; font-size:15px; color:var(--navy2); margin:22px 0 10px; padding-bottom:6px; border-bottom:2px solid var(--line); }
+  #wt-print-report .rpt-stats{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  #wt-print-report .rpt-stat{ border:1px solid var(--line); border-radius:8px; padding:8px 12px; min-width:90px; }
+  #wt-print-report table{ width:100%; border-collapse:collapse; font-size:11px; margin-bottom:10px; }
+  #wt-print-report th{ background:var(--navy2); color:#fff; padding:7px 8px; text-align:right; font-size:10.5px; }
+  #wt-print-report td{ padding:7px 8px; border-bottom:1px solid var(--line); }
+  #wt-print-report tr{ break-inside: avoid; }
+  #wt-print-report .rpt-badge{ display:inline-block; padding:2px 7px; border-radius:6px; font-size:10px; font-weight:700; }
+  #wt-print-report .rpt-footer{ margin-top:20px; font-size:10px; color:var(--muted); text-align:center; border-top:1px solid var(--line); padding-top:10px; }
+
+  @media print{
+    body > *:not(#wt-print-report){ display:none !important; }
+    #wt-print-report{ display:block !important; }
+    #wt-print-report .rpt-wrap{ padding:0; }
+    @page{ size:A4; margin:14mm; }
+  }
+</style>
+<div id="wt-print-report"></div>
+<script>
+(function(){
+
+/* ---------------- icons (inline svg, stroke style) ---------------- */
+function icon(name, size, color){
+  size = size || 14; color = color || 'currentColor';
+  const P = `stroke="${color}" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"`;
+  const paths = {
+    dashboard: `<rect x="3" y="3" width="7" height="9" ${P}/><rect x="14" y="3" width="7" height="5" ${P}/><rect x="14" y="12" width="7" height="9" ${P}/><rect x="3" y="16" width="7" height="5" ${P}/>`,
+    tasks: `<path d="M9 11l3 3 8-8" ${P}/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" ${P}/>`,
+    send: `<path d="M22 2L11 13" ${P}/><path d="M22 2l-7 20-4-9-9-4 20-7z" ${P}/>`,
+    flask: `<path d="M9 2v6.5L4 20a1 1 0 0 0 1 1.5h14a1 1 0 0 0 1-1.5L15 8.5V2" ${P}/><path d="M9 2h6" ${P}/><path d="M7 15h10" ${P}/>`,
+    radio: `<circle cx="12" cy="12" r="2" ${P}/><path d="M16.24 7.76a6 6 0 0 1 0 8.49M7.76 16.24a6 6 0 0 1 0-8.49M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14" ${P}/>`,
+    users: `<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" ${P}/><circle cx="9" cy="7" r="4" ${P}/><path d="M23 21v-2a4 4 0 0 0-3-3.87" ${P}/><path d="M16 3.13a4 4 0 0 1 0 7.75" ${P}/>`,
+    plus: `<path d="M12 5v14M5 12h14" ${P}/>`,
+    link: `<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" ${P}/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" ${P}/>`,
+    x: `<path d="M18 6L6 18M6 6l12 12" ${P}/>`,
+    alert: `<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" ${P}/><path d="M12 9v4M12 17h.01" ${P}/>`,
+    check: `<circle cx="12" cy="12" r="10" ${P}/><path d="M8 12l3 3 5-6" ${P}/>`,
+    clock: `<circle cx="12" cy="12" r="10" ${P}/><path d="M12 6v6l4 2" ${P}/>`,
+    pause: `<circle cx="12" cy="12" r="10" ${P}/><path d="M10 9v6M14 9v6" ${P}/>`,
+    wrench: `<path d="M14.7 6.3a4 4 0 1 1-5.4 5.4l-6 6a1.5 1.5 0 0 0 2.1 2.1l6-6a4 4 0 0 1 5.4-5.4z" ${P}/>`,
+    search: `<circle cx="11" cy="11" r="7" ${P}/><path d="M21 21l-4.3-4.3" ${P}/>`,
+    download: `<path d="M12 3v12m0 0l-4-4m4 4l4-4" ${P}/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" ${P}/>`,
+    upload: `<path d="M12 21V9m0 0l-4 4m4-4l4 4" ${P}/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" ${P}/>`,
+    lock: `<rect x="4" y="11" width="16" height="10" rx="2" ${P}/><path d="M8 11V7a4 4 0 0 1 8 0v4" ${P}/>`,
+    edit: `<path d="M12 20h9" ${P}/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" ${P}/>`,
+    report: `<path d="M6 2h9l5 5v15a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" ${P}/><path d="M14 2v5h5" ${P}/><path d="M8 13h8M8 17h8M8 9h3" ${P}/>`,
+    pin: `<path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z" ${P}/><circle cx="12" cy="10" r="3" ${P}/>`,
+  };
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24">${paths[name]||''}</svg>`;
+}
+
+/* ---------------- data ---------------- */
+const TEAM_COLORS = ["#4B5768", "#0E7C7B", "#8A5CF6", "#C98A2C", "#3E6FB0", "#B5495B", "#5B8C5A"];
+const STORAGE_KEY = "wateera-institute-tracker-v1";
+const ACCESS_PIN = "2580"; // غيّر هذا الرمز لأي رقم تفضله — رادع دخول عرضي، وليس حماية أمنية حقيقية
+let idCounter = 100;
+const nextId = (p) => p + (idCounter++);
+
+function getSeedData(){
+  return {
+    teams: [
+      { id: "t0", name: "الإدارة التنفيذية" },
+      { id: "t1", name: "إدارة ابتكار العمليات" },
+      { id: "t2", name: "إدارة الاقتصاد الدائري" },
+      { id: "t3", name: "إدارة الاستدامة" },
+      { id: "t4", name: "إدارة الطاقة النظيفة والمتجددة" },
+      { id: "t5", name: "إدارة المختبرات المركزية" },
+      { id: "t6", name: "الإدارة العامة للمحطات التجريبية" },
+    ],
+    tasks: [
+      { id:"r1", key:"K-0512", team:"t1", task:"تحليل بيانات الاستبيان الأولي", type:"بحثية", R:"سارة", A:"أحمد", C:"علي", I:"محمد", status:"progress", dueDate:"2026-06-18", notes:"", linkedCorrId:"c1", linkedFacilityId:null },
+      { id:"r2", key:"K-0498", team:"t2", task:"مراجعة الإطار المنهجي", type:"بحثية", R:"خالد", A:"نورة", C:"فهد", I:"—", status:"done", dueDate:"2026-06-10", notes:"", linkedCorrId:null, linkedFacilityId:"f2" },
+      { id:"r3", key:"K-0521", team:"t3", task:"إعداد عرض تقديمي لمجلس الإدارة", type:"إدارية", R:"ريم", A:"سلطان", C:"—", I:"الجميع", status:"progress", dueDate:"2026-06-14", notes:"", linkedCorrId:null, linkedFacilityId:null },
+      { id:"r4", key:"K-0503", team:"t4", task:"تنسيق زيارة ميدانية", type:"لوجستية", R:"عبدالله", A:"منى", C:"خالد", I:"—", status:"paused", dueDate:"2026-06-08", notes:"بانتظار الموافقة", linkedCorrId:"c2", linkedFacilityId:null },
+      { id:"r5", key:"K-0530", team:"t1", task:"تدقيق النتائج قبل النشر", type:"بحثية", R:"سارة", A:"أحمد", C:"نورة", I:"محمد", status:"progress", dueDate:"2026-06-20", notes:"", linkedCorrId:null, linkedFacilityId:null },
+      { id:"r6", key:"F-0201", team:"t3", task:"صيانة محطة قياس الأثر البيئي", type:"صيانة", R:"فهد", A:"ريم", C:"—", I:"الإدارة التنفيذية", status:"progress", dueDate:"2026-06-16", notes:"منشأة تلقائيًا من مرفق S-201", linkedCorrId:null, linkedFacilityId:"f3" },
+    ],
+    corr: [
+      { id:"c1", key:"K-0512", team:"t1", scope:"داخلي", dir:"وارد", dept:"الإدارة التنفيذية", referredTo:"سارة", date:"2026-06-12", status:"progress", name:"طلب تزويد ببيانات الاستبيان", linkedTaskId:"r1" },
+      { id:"c2", key:"K-0503", team:"t4", scope:"خارجي", dir:"صادر", dept:"الإدارة التنفيذية", referredTo:"الجهة المضيفة", date:"2026-06-05", status:"paused", name:"طلب تنسيق زيارة ميدانية", linkedTaskId:"r4" },
+      { id:"c3", key:"K-0540", team:"t2", scope:"خارجي", dir:"وارد", dept:"الإدارة التنفيذية", referredTo:"خالد", date:"2026-06-19", status:"progress", name:"استفسار من جهة شريكة", linkedTaskId:null },
+    ],
+    facilities: [
+      { id:"f1", key:"L-101", kind:"مختبر", name:"مختبر تحليل العمليات التشغيلية", team:"t1", location:"المبنى A — الدور 2", status:"active", capacity:"6 باحثين", notes:"" },
+      { id:"f2", key:"L-102", kind:"مختبر", name:"مختبر إعادة التدوير والمواد", team:"t2", location:"المبنى B — الدور 1", status:"active", capacity:"8 باحثين", notes:"" },
+      { id:"f3", key:"S-201", kind:"محطة تجريبية", name:"محطة قياس الأثر البيئي", team:"t3", location:"الموقع الميداني — الشمال", status:"maintenance", capacity:"—", notes:"صيانة دورية لأجهزة القياس" },
+      { id:"f4", key:"S-202", kind:"محطة تجريبية", name:"محطة الطاقة الشمسية التجريبية", team:"t4", location:"الموقع الميداني — الجنوب", status:"active", capacity:"منشأة 50kW", notes:"" },
+      { id:"f5", key:"L-103", kind:"مختبر", name:"مختبر نمذجة كفاءة الطاقة", team:"t4", location:"المبنى A — الدور 3", status:"idle", capacity:"4 باحثين", notes:"بانتظار تجديد الترخيص" },
+    ],
+    idCounter: 100,
+  };
+}
+
+const state = {
+  teams: [], tasks: [], corr: [], facilities: [],
+  tab: "dashboard",
+  activeTeam: "all",
+  search: "",
+  ready: false,
+  unlocked: false,
+  trialCleared: false,
+  saveStatus: "جارٍ تحميل البيانات...",
+};
+
+const STATUS = {
+  done: { label:"منجزة", color:"#2F8F5B", icon:"check" },
+  progress: { label:"تحت الإجراء", color:"#0E7C7B", icon:"clock" },
+  paused: { label:"معلقة", color:"#6B7280", icon:"pause" },
+};
+const LAB_STATUS = {
+  active: { label:"قيد التشغيل", color:"#2F8F5B", icon:"check" },
+  maintenance: { label:"تحت الصيانة", color:"#C98A2C", icon:"wrench" },
+  idle: { label:"متوقف", color:"#6B7280", icon:"pause" },
+};
+
+/* ---------------- helpers ---------------- */
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function daysFrom(dateStr){ return Math.floor((new Date() - new Date(dateStr)) / 86400000); }
+function isOverdue(item){ return item.status !== "done" && item.dueDate && daysFrom(item.dueDate) > 3; }
+function teamName(id){ const t = state.teams.find(t=>t.id===id); return t ? t.name : "—"; }
+function teamColor(id){ const i = state.teams.findIndex(t=>t.id===id); return TEAM_COLORS[i % TEAM_COLORS.length]; }
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function linkedCorrFor(task){ return state.corr.find(c=>c.id===task.linkedCorrId); }
+function linkedTaskFor(c){ return state.tasks.find(t=>t.id===c.linkedTaskId); }
+function facilityFor(task){ return state.facilities.find(f=>f.id===task.linkedFacilityId); }
+function tasksForFacility(fid){ return state.tasks.filter(t=>t.linkedFacilityId===fid); }
+
+function statusBadge(map, key){
+  const s = map[key]; if(!s) return "";
+  return `<span class="chip" style="background:${s.color}1A;color:${s.color}">${icon(s.icon,12,s.color)} ${s.label}</span>`;
+}
+function roleChip(label, name, color){
+  return `<span class="role" style="background:${color}14;color:${color}"><b style="background:${color}">${label}</b>${esc(name)}</span>`;
+}
+function teamOptions(selected){
+  return state.teams.map(t=>`<option value="${t.id}" ${t.id===selected?"selected":""}>${esc(t.name)}</option>`).join("");
+}
+
+/* ---------------- persistence ---------------- */
+/* ---------------- storage abstraction: cloud (Claude) أو محلي بالمتصفح كبديل ---------------- */
+const hasCloudStorage = (typeof window !== 'undefined') && !!window.storage;
+let storageMode = hasCloudStorage ? 'cloud' : 'local';
+
+async function storageGet(key){
+  if(hasCloudStorage){
+    const res = await window.storage.get(key, true);
+    return res.value;
+  }
+  const v = localStorage.getItem(key);
+  if(v === null || v === undefined) throw new Error('not found');
+  return v;
+}
+async function storageSet(key, value){
+  if(hasCloudStorage){
+    await window.storage.set(key, value, true);
+    return;
+  }
+  localStorage.setItem(key, value);
+}
+
+async function loadData(){
+  try{
+    const raw = await storageGet(STORAGE_KEY);
+    const data = JSON.parse(raw);
+    state.teams = data.teams; state.tasks = data.tasks; state.corr = data.corr; state.facilities = data.facilities;
+    idCounter = data.idCounter || 100;
+    state.trialCleared = !!data.trialCleared;
+    state.saveStatus = storageMode === 'cloud' ? "تم تحميل آخر نسخة محفوظة (سحابة مشتركة)" : "تم تحميل آخر نسخة محفوظة (هذا المتصفح فقط)";
+  } catch(e){
+    const seed = getSeedData();
+    state.teams = seed.teams; state.tasks = seed.tasks; state.corr = seed.corr; state.facilities = seed.facilities;
+    idCounter = seed.idCounter;
+    state.saveStatus = "بيانات ابتدائية — جارٍ الحفظ الأول...";
+  }
+  let needsSave = ensureBaselineTeams();
+  needsSave = ensureBaselineFacilities() || needsSave;
+  if(!state.trialCleared){
+    clearTrialData();
+    state.trialCleared = true;
+    needsSave = true;
+  }
+  if(needsSave) saveData();
+  state.ready = true;
+  render();
+}
+
+/* يضيف إدارتي المختبرات المركزية والمحطات التجريبية إذا لم تكونا موجودتين — آمن للتشغيل المتكرر */
+function ensureBaselineTeams(){
+  const toAdd = [
+    { id: "t5", name: "إدارة المختبرات المركزية" },
+    { id: "t6", name: "الإدارة العامة للمحطات التجريبية" },
+  ];
+  let changed = false;
+  toAdd.forEach(def=>{
+    if(!state.teams.some(t=>t.id===def.id)){
+      state.teams.push(def);
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+/* حذف لمرة واحدة لكل بيانات التجربة الأولية (مهام + تراسل + مرافق تجريبية) بناءً على طلب المستخدم — لا يعيد التنفيذ بفضل علامة trialCleared المحفوظة */
+function clearTrialData(){
+  state.tasks = [];
+  state.corr = [];
+  const demoFacilityKeys = new Set(["L-101","L-102","S-201","S-202","L-103"]);
+  state.facilities = state.facilities.filter(f => !demoFacilityKeys.has(f.key));
+}
+
+/* يضيف مختبرات أساسية إذا لم تكن موجودة بعد — آمن للتشغيل المتكرر، لا يكرر أي إدخال */
+function ensureBaselineFacilities(){
+  const toAdd = [
+    { name:"مختبر الأحياء", kind:"مختبر", team:"t5", location:"المبنى A — الدور 1", capacity:"6 باحثين", status:"active" },
+    { name:"مختبر الكيمياء", kind:"مختبر", team:"t5", location:"المبنى A — الدور 1", capacity:"6 باحثين", status:"active" },
+    { name:"مختبر التآكل", kind:"مختبر", team:"t5", location:"المبنى B — الدور 2", capacity:"5 باحثين", status:"active" },
+    { name:"مختبر البيئة", kind:"مختبر", team:"t5", location:"المبنى B — الدور 2", capacity:"6 باحثين", status:"active" },
+  ];
+  let changed = false;
+  toAdd.forEach(def=>{
+    const existing = state.facilities.find(f=>f.name===def.name);
+    if(!existing){
+      state.facilities.push({
+        id: nextId('f'), key: `F-${idCounter}`, kind: def.kind, name: def.name, team: def.team,
+        location: def.location, capacity: def.capacity, status: def.status, notes: "",
+      });
+      changed = true;
+    } else if(existing.team !== "t5"){
+      // نقل ملكية المختبرات من الإدارة التنفيذية إلى إدارة المختبرات المركزية المخصصة
+      existing.team = "t5";
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+async function saveData(){
+  updateSaveIndicator("جارٍ الحفظ...", "#B9C2D0");
+  try{
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, idCounter, trialCleared: state.trialCleared });
+    await storageSet(STORAGE_KEY, payload);
+    const t = new Date().toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit' });
+    state.saveStatus = (storageMode === 'cloud' ? "آخر حفظ (سحابة مشتركة): " : "آخر حفظ (هذا المتصفح فقط): ") + t;
+    updateSaveIndicator(state.saveStatus, "#B9C2D0");
+  } catch(e){
+    state.saveStatus = "تعذّر الحفظ — التعديل محلي مؤقتًا فقط";
+    updateSaveIndicator(state.saveStatus, "#F2A6A0");
+  }
+}
+function updateSaveIndicator(text, color){
+  const el = document.getElementById('saveIndicator');
+  if(el){ el.textContent = text; el.style.color = color; }
+}
+
+/* ---------------- render ---------------- */
+const root = document.getElementById('wateera-root');
+
+function render(){
+  if(!state.ready){
+    root.innerHTML = `<div style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px;">${state.saveStatus}</div>`;
+    return;
+  }
+  if(!state.unlocked){
+    renderLockScreen();
+    return;
+  }
+  root.innerHTML = `
+    ${renderHeader()}
+    <main style="max-width:1180px;margin:0 auto;padding:24px 20px 60px;">
+      ${state.tab==='dashboard' ? renderDashboard() : ''}
+      ${state.tab==='raci' ? renderRaci() : ''}
+      ${state.tab==='corr' ? renderCorr() : ''}
+      ${state.tab==='labs' ? renderLabs() : ''}
+      ${state.tab==='stations' ? renderStations() : ''}
+      ${state.tab==='teams' ? renderTeams() : ''}
+    </main>
+    <div id="modalHost"></div>
+  `;
+  bindEvents();
+}
+
+function renderLockScreen(){
+  root.innerHTML = `
+    <div dir="rtl" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;">
+      <div class="card" style="width:100%;max-width:360px;padding:28px 24px;text-align:center;">
+        <div style="width:52px;height:52px;border-radius:14px;background:var(--navy);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#fff;">
+          ${icon('lock',22)}
+        </div>
+        <div class="disp" style="font-size:17px;font-weight:800;margin-bottom:4px;">معهد وتيرا — الإدارة التنفيذية</div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:18px;">أدخل رمز الدخول للمتابعة</div>
+        <input id="pinInput" type="password" inputmode="numeric" maxlength="12" placeholder="••••" style="text-align:center;font-size:18px;letter-spacing:6px;padding:10px;">
+        <div id="pinError" style="color:var(--red);font-size:12px;margin-top:8px;min-height:16px;"></div>
+        <button id="pinSubmit" style="width:100%;margin-top:10px;padding:10px;border-radius:9px;border:none;background:var(--navy);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;">دخول</button>
+      </div>
+    </div>`;
+  const input = document.getElementById('pinInput');
+  const btn = document.getElementById('pinSubmit');
+  const err = document.getElementById('pinError');
+  const tryUnlock = ()=>{
+    if(input.value === ACCESS_PIN){
+      state.unlocked = true;
+      render();
+    } else {
+      err.textContent = "الرمز غير صحيح — حاول مرة أخرى";
+      input.value = "";
+      input.focus();
+    }
+  };
+  btn.addEventListener('click', tryUnlock);
+  input.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') tryUnlock(); });
+  input.focus();
+}
+
+function renderHeader(){
+  const tabs = [
+    ["dashboard","لوحة القيادة","dashboard"],
+    ["raci","مهام RACI","tasks"],
+    ["corr","التراسل","send"],
+    ["labs","المختبرات","flask"],
+    ["stations","المحطات التجريبية","radio"],
+    ["teams","الفرق","users"],
+  ];
+  return `
+  <header style="background:var(--navy);color:#fff;padding:20px 24px 0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <div>
+        <div class="disp" style="font-size:22px;font-weight:800;">معهد وتيرا <span style="color:var(--teal);font-weight:700;">— الإدارة التنفيذية</span></div>
+        <div style="font-size:13px;color:#B9C2D0;margin-top:4px;">متابعة موحّدة لمهام RACI والتراسل والمرافق عبر أربعة إدارات</div>
+        <div style="font-size:11px;color:${storageMode==='cloud'?'#9FE0C9':'#F2C97D'};margin-top:4px;font-weight:600;">
+          ${storageMode==='cloud'
+            ? '☁️ الحفظ سحابي مشترك — يظهر لأي شخص يفتح نفس الرابط داخل كلود'
+            : '💻 الحفظ محلي بهذا المتصفح فقط — البيانات لا تظهر على أي جهاز أو متصفح ثاني'}
+        </div>
+        <div id="saveIndicator" style="font-size:11px;color:#B9C2D0;margin-top:6px;">${esc(state.saveStatus)}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button id="reportBtn" title="تقرير PDF احترافي" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);color:#E4E9F0;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('report',14)} تقرير PDF</button>
+        <button id="exportBtn" title="تنزيل نسخة احتياطية (JSON)" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);color:#E4E9F0;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('download',14)} نسخة احتياطية</button>
+        <button id="importBtn" title="استيراد نسخة احتياطية (JSON)" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);color:#E4E9F0;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('upload',14)} استيراد</button>
+        <input type="file" id="importFile" accept="application/json" style="display:none;">
+        <div style="display:flex;gap:8px;background:rgba(255,255,255,.06);padding:6px;border-radius:12px;">
+          ${tabs.map(([id,label,ic])=>`<button data-tab="${id}" class="tabbtn ${state.tab===id?'active':''}">${icon(ic,15)} ${label}</button>`).join("")}
+        </div>
+      </div>
+    </div>
+    <div class="scroller" style="display:flex;gap:8px;overflow-x:auto;padding:16px 0;align-items:center;">
+      <button data-team="all" class="teamchip ${state.activeTeam==='all'?'active':''}">كل الإدارات</button>
+      ${state.teams.map((t,i)=>`
+        <button data-team="${t.id}" class="teamchip ${state.activeTeam===t.id?'active':''}">
+          <span style="width:8px;height:8px;border-radius:99px;background:${TEAM_COLORS[i % TEAM_COLORS.length]}"></span>${esc(t.name)}
+        </button>`).join("")}
+    </div>
+  </header>`;
+}
+
+function computeStats(pool){
+  return {
+    total: pool.length,
+    done: pool.filter(t=>t.status==='done').length,
+    progress: pool.filter(t=>t.status==='progress').length,
+    paused: pool.filter(t=>t.status==='paused').length,
+    overdue: pool.filter(isOverdue).length,
+  };
+}
+
+function renderDashboard(){
+  const pool = state.activeTeam==='all' ? state.tasks : state.tasks.filter(t=>t.team===state.activeTeam);
+  const stats = computeStats(pool);
+  const teamStats = state.teams.map(tm=>{
+    const p = state.tasks.filter(t=>t.team===tm.id);
+    const done = p.filter(t=>t.status==='done').length;
+    return {...tm, total:p.length, done, pct: p.length ? Math.round(done/p.length*100) : 0, overdue: p.filter(isOverdue).length};
+  });
+  const overdueTasks = state.tasks.filter(t => (state.activeTeam==='all'||t.team===state.activeTeam) && isOverdue(t));
+
+  const corrPool = state.activeTeam==='all' ? state.corr : state.corr.filter(c=>c.team===state.activeTeam);
+  const corrStats = {
+    total: corrPool.length,
+    incoming: corrPool.filter(c=>c.dir==='وارد').length,
+    outgoing: corrPool.filter(c=>c.dir==='صادر').length,
+    done: corrPool.filter(c=>c.status==='done').length,
+    progress: corrPool.filter(c=>c.status==='progress').length,
+    paused: corrPool.filter(c=>c.status==='paused').length,
+    linked: corrPool.filter(c=>c.linkedTaskId).length,
+    unlinked: corrPool.filter(c=>!c.linkedTaskId).length,
+  };
+
+  const facPool = state.activeTeam==='all' ? state.facilities : state.facilities.filter(f=>f.team===state.activeTeam);
+  const facStats = {
+    labs: facPool.filter(f=>f.kind==='مختبر').length,
+    stations: facPool.filter(f=>f.kind==='محطة تجريبية').length,
+    active: facPool.filter(f=>f.status==='active').length,
+    maintenance: facPool.filter(f=>f.status==='maintenance').length,
+    idle: facPool.filter(f=>f.status==='idle').length,
+  };
+
+  const statCard = (label,val,color,ic) => `
+    <div class="statcard">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:12.5px;color:var(--muted);font-weight:600;">${label}</span>${icon(ic,16,color)}
+      </div>
+      <div class="disp" style="font-size:28px;font-weight:800;color:${color};margin-top:6px;">${val}</div>
+    </div>`;
+
+  return `
+  <div style="display:flex;flex-direction:column;gap:20px;">
+    <div>
+      <div class="disp" style="font-weight:700;font-size:15px;margin-bottom:10px;">مؤشرات مهام RACI</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        ${statCard("إجمالي المهام", stats.total, "var(--navy2)", "tasks")}
+        ${statCard("منجزة", stats.done, "var(--green)", "check")}
+        ${statCard("تحت الإجراء", stats.progress, "var(--teal)", "clock")}
+        ${statCard("معلقة", stats.paused, "var(--muted)", "pause")}
+        ${statCard("متأخرة +٣ أيام", stats.overdue, "var(--red)", "alert")}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start;">
+      <div class="card" style="padding:18px;">
+        <div class="disp" style="font-weight:700;font-size:15px;margin-bottom:14px;">إنجاز الإدارات</div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          ${teamStats.map((tm,i)=>`
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+                <span style="font-weight:600;display:flex;align-items:center;gap:6px;">
+                  <span style="width:8px;height:8px;border-radius:99px;background:${TEAM_COLORS[i % TEAM_COLORS.length]}"></span>${esc(tm.name)}
+                </span>
+                <span style="color:var(--muted);">${tm.done}/${tm.total} · ${tm.pct}%${tm.overdue>0?` <span style="color:var(--red);margin-right:8px;">● ${tm.overdue} متأخرة</span>`:''}</span>
+              </div>
+              <div style="height:8px;background:#EEF0EC;border-radius:99px;overflow:hidden;">
+                <div style="width:${tm.pct}%;height:100%;background:${TEAM_COLORS[i % TEAM_COLORS.length]};border-radius:99px;"></div>
+              </div>
+            </div>`).join("")}
+        </div>
+      </div>
+      <div class="card" style="padding:18px;">
+        <div class="disp" style="font-weight:700;font-size:15px;margin-bottom:12px;display:flex;align-items:center;gap:6px;">${icon('alert',16,'var(--red)')} بحاجة متابعة عاجلة</div>
+        ${overdueTasks.length===0 ? `<div style="font-size:13px;color:var(--muted);padding:10px 0;">لا توجد مهام متأخرة حاليًا 🎉</div>` :
+          `<div style="display:flex;flex-direction:column;gap:10px;">
+            ${overdueTasks.map(t=>`
+              <div style="display:flex;justify-content:space-between;align-items:center;font-size:12.5px;border-bottom:1px dashed var(--line);padding-bottom:8px;">
+                <div><div style="font-weight:600;">${esc(t.task)}</div><div style="color:var(--muted);margin-top:2px;">${esc(teamName(t.team))} · متأخرة ${daysFrom(t.dueDate)} يوم</div></div>
+                <span style="background:#FCEBEA;color:var(--red);font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px;">${t.key}</span>
+              </div>`).join("")}
+          </div>`}
+      </div>
+    </div>
+    <div>
+      <div class="disp" style="font-weight:700;font-size:15px;margin-bottom:10px;">مؤشرات التراسل</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        ${statCard("إجمالي المعاملات", corrStats.total, "var(--navy2)", "send")}
+        ${statCard("وارد", corrStats.incoming, "var(--blue)", "send")}
+        ${statCard("صادر", corrStats.outgoing, "var(--teal)", "send")}
+        ${statCard("منجزة", corrStats.done, "var(--green)", "check")}
+        ${statCard("تحت الإجراء", corrStats.progress, "var(--teal)", "clock")}
+        ${statCard("معلقة", corrStats.paused, "var(--muted)", "pause")}
+      </div>
+      <div class="card" style="padding:16px 18px;margin-top:12px;">
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">كل معاملة مرتبطة بمهمة RACI تُغلق آليًا معها — يمنع ضياع المتابعة بين الأنظمة</div>
+        <div style="display:flex;gap:24px;flex-wrap:wrap;">
+          <div class="disp" style="font-size:22px;font-weight:800;color:var(--teal);">${corrStats.linked}<span style="font-size:12px;color:var(--muted);font-weight:500;margin-right:6px;">معاملة مرتبطة بمهمة</span></div>
+          <div class="disp" style="font-size:22px;font-weight:800;color:var(--amber);">${corrStats.unlinked}<span style="font-size:12px;color:var(--muted);font-weight:500;margin-right:6px;">بدون ربط بعد</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="padding:18px;">
+      <div class="disp" style="font-weight:700;font-size:15px;margin-bottom:14px;">المختبرات والمحطات التجريبية</div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        ${statCard("مختبرات", facStats.labs, "var(--teal)", "flask")}
+        ${statCard("محطات تجريبية", facStats.stations, "var(--blue)", "radio")}
+        ${statCard("قيد التشغيل", facStats.active, "var(--green)", "check")}
+        ${statCard("تحت الصيانة", facStats.maintenance, "var(--amber)", "wrench")}
+        ${statCard("متوقف", facStats.idle, "var(--muted)", "pause")}
+      </div>
+    </div>
+  </div>`;
+}
+
+function toolbar(addLabel, addAction, secondary){
+  return `
+  <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+    <div style="position:relative;flex:1;min-width:200px;max-width:320px;">
+      ${icon('search',15)}<span style="position:absolute;right:12px;top:9px;color:var(--muted);">${icon('search',15)}</span>
+      <input id="searchInput" type="text" value="${esc(state.search)}" placeholder="بحث بالاسم أو رقم المرجع..." style="padding-right:34px;">
+    </div>
+    <div style="display:flex;gap:8px;">
+      ${secondary ? `<button id="${secondary.action}" style="display:flex;align-items:center;gap:6px;background:#fff;color:var(--navy);border:1px solid var(--line);padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">${icon('plus',15)} ${secondary.label}</button>` : ''}
+      <button id="${addAction}" style="display:flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border:none;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">${icon('plus',15)} ${addLabel}</button>
+    </div>
+  </div>`;
+}
+
+function renderRaci(){
+  const tasks = state.tasks.filter(t => (state.activeTeam==='all'||t.team===state.activeTeam) && (t.task.includes(state.search)||t.key.includes(state.search)));
+  const rows = tasks.map(t=>{
+    const overdue = isOverdue(t);
+    const lc = linkedCorrFor(t);
+    const lf = facilityFor(t);
+    return `<tr>
+      <td style="font-weight:700;color:var(--navy2);">${t.key}</td>
+      <td style="max-width:220px;"><div style="font-weight:600;">${esc(t.task)}</div><div style="color:var(--muted);font-size:11.5px;margin-top:2px;">${esc(t.type)}</div></td>
+      <td><span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(t.team)}"></span>${esc(teamName(t.team))}</span></td>
+      <td><div style="display:flex;flex-wrap:wrap;max-width:220px;">${roleChip('R',t.R,'#0E7C7B')}${roleChip('A',t.A,'#142033')}${roleChip('C',t.C,'#C98A2C')}${roleChip('I',t.I,'#8A93A3')}</div></td>
+      <td>${statusBadge(STATUS,t.status)}</td>
+      <td style="white-space:nowrap;">
+        <span class="${overdue?'pulse':''}">${t.dueDate||'—'}</span>
+        ${overdue?`<div style="color:var(--red);font-size:11px;font-weight:700;margin-top:2px;">متأخرة ${daysFrom(t.dueDate)} يوم</div>`:''}
+      </td>
+      <td>${lc?`<button class="linkbtn goto" data-tab="corr" style="color:var(--teal);">${icon('link',11)} ${lc.key}</button>`:`<span style="color:var(--muted);font-size:11.5px;">—</span>`}</td>
+      <td>${lf?`<button class="linkbtn goto" data-tab="${lf.kind==='مختبر'?'labs':'stations'}" style="color:var(--blue);">${icon(lf.kind==='مختبر'?'flask':'radio',11)} ${lf.key}</button>`:`<span style="color:var(--muted);font-size:11.5px;">—</span>`}</td>
+      <td><button class="linkbtn editTaskBtn" data-id="${t.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button></td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted);">لا توجد مهام مطابقة</td></tr>`;
+
+  return `
+    ${toolbar("إضافة مهمة","addTaskBtn")}
+    <div class="card" style="overflow:hidden;">
+      <div class="scroller" style="overflow-x:auto;">
+        <table><thead><tr>${["المرجع","المهمة","الفريق","الأدوار (RACI)","الحالة","تاريخ التسليم","تراسل مرتبط","مرفق مرتبط",""].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${rows}</tbody></table>
+      </div>
+    </div>
+  `;
+}
+
+function renderCorr(){
+  const items = state.corr.filter(c => (state.activeTeam==='all'||c.team===state.activeTeam) && (c.name.includes(state.search)||c.key.includes(state.search)||(c.transactionNo||'').includes(state.search)));
+  const rows = items.map(c=>{
+    const lt = linkedTaskFor(c);
+    return `<tr>
+      <td style="font-weight:700;color:var(--navy2);white-space:nowrap;">${esc(c.transactionNo||'—')}</td>
+      <td style="font-weight:700;color:var(--navy2);">${c.key}</td>
+      <td style="font-weight:600;max-width:220px;">${esc(c.name)}</td>
+      <td><span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(c.team)}"></span>${esc(teamName(c.team))}</span></td>
+      <td style="color:var(--muted);">${c.scope}</td>
+      <td><span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px;background:${c.dir==='صادر'?'#EAF3F1':'#F1EFFB'};color:${c.dir==='صادر'?'var(--teal)':'#6C4FC7'};">${c.dir}</span></td>
+      <td style="white-space:nowrap;color:var(--muted);">${c.date}</td>
+      <td>${statusBadge(STATUS,c.status)}</td>
+      <td>${lt?`<button class="linkbtn goto" data-tab="raci" style="color:var(--teal);">${icon('link',11)} ${lt.key}</button>`:`<span style="color:var(--amber);font-size:11.5px;font-weight:600;">بدون ربط</span>`}</td>
+      <td><button class="linkbtn editCorrBtn" data-id="${c.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button></td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="10" style="padding:30px;text-align:center;color:var(--muted);">لا توجد معاملات مطابقة</td></tr>`;
+
+  return `
+    ${toolbar("إضافة معاملة","addCorrBtn")}
+    <div class="card" style="overflow:hidden;">
+      <div class="scroller" style="overflow-x:auto;">
+        <table><thead><tr>${["رقم المعاملة","المرجع","اسم المعاملة","الفريق","النوع","صادر/وارد","التاريخ","الحالة","مرتبطة بمهمة",""].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${rows}</tbody></table>
+      </div>
+    </div>
+  `;
+}
+
+function renderFacilitiesByKind(kind, tabId, addLabel, titleLabel, iconName){
+  const pool = state.facilities.filter(f=>f.kind===kind && (state.activeTeam==='all'||f.team===state.activeTeam));
+  const fstats = {
+    total: pool.length,
+    active: pool.filter(f=>f.status==='active').length,
+    maintenance: pool.filter(f=>f.status==='maintenance').length,
+    idle: pool.filter(f=>f.status==='idle').length,
+  };
+  const statCard = (label,val,color,ic) => `
+    <div class="statcard"><div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:12.5px;color:var(--muted);font-weight:600;">${label}</span>${icon(ic,16,color)}</div>
+    <div class="disp" style="font-size:28px;font-weight:800;color:${color};margin-top:6px;">${val}</div></div>`;
+
+  const items = pool.filter(f => f.name.includes(state.search)||f.key.includes(state.search));
+  const rows = items.map(f=>{
+    const linked = tasksForFacility(f.id);
+    const openCount = linked.filter(t=>t.status!=='done').length;
+    return `<tr>
+      <td style="font-weight:700;color:var(--navy2);">${f.key}</td>
+      <td style="font-weight:600;max-width:220px;">${esc(f.name)}${f.notes?`<div style="color:var(--muted);font-size:11.5px;margin-top:2px;font-weight:400;">${esc(f.notes)}</div>`:''}</td>
+      <td><span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(f.team)}"></span>${esc(teamName(f.team))}</span></td>
+      <td style="color:var(--muted);"><span style="display:inline-flex;align-items:center;gap:4px;">${icon('pin',12)} ${esc(f.location)}</span></td>
+      <td style="color:var(--muted);white-space:nowrap;">${esc(f.capacity)}</td>
+      <td>${statusBadge(LAB_STATUS,f.status)}</td>
+      <td>${linked.length===0?`<span style="color:var(--muted);font-size:11.5px;">—</span>`:`<button class="linkbtn goto" data-tab="raci" style="color:${openCount?'var(--amber)':'var(--green)'};">${icon('link',11)} ${linked.length} مهمة${openCount?` (${openCount} مفتوحة)`:''}</button>`}</td>
+      <td><button class="linkbtn editFacilityBtn" data-id="${f.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button></td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="8" style="padding:30px;text-align:center;color:var(--muted);">لا توجد ${titleLabel} مطابقة</td></tr>`;
+
+  return `
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;">
+      ${statCard("إجمالي " + titleLabel, fstats.total, "var(--navy2)", iconName)}
+      ${statCard("قيد التشغيل", fstats.active, "var(--green)", "check")}
+      ${statCard("تحت الصيانة", fstats.maintenance, "var(--amber)", "wrench")}
+      ${statCard("متوقف", fstats.idle, "var(--muted)", "pause")}
+    </div>
+    ${toolbar(addLabel, "addFacilityBtn_" + tabId, { label:"إضافة مهمة", action:"addTaskBtn" })}
+    <div class="card" style="overflow:hidden;">
+      <div class="scroller" style="overflow-x:auto;">
+        <table><thead><tr>${["المرجع","الاسم","الفريق المسؤول","الموقع","السعة","الحالة","مهام مرتبطة",""].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${rows}</tbody></table>
+      </div>
+    </div>
+  `;
+}
+function renderLabs(){ return renderFacilitiesByKind("مختبر", "labs", "إضافة مختبر", "مختبرات", "flask"); }
+function renderStations(){ return renderFacilitiesByKind("محطة تجريبية", "stations", "إضافة محطة تجريبية", "محطات", "radio"); }
+
+function renderTeams(){
+  const cards = state.teams.map((tm,i)=>{
+    const pool = state.tasks.filter(t=>t.team===tm.id);
+    const done = pool.filter(t=>t.status==='done').length;
+    const pct = pool.length ? Math.round(done/pool.length*100) : 0;
+    const overdue = pool.filter(isOverdue).length;
+    const fac = state.facilities.filter(f=>f.team===tm.id);
+    const facActive = fac.filter(f=>f.status==='active').length;
+    return `
+    <div class="card" style="border-top:4px solid ${TEAM_COLORS[i % TEAM_COLORS.length]};padding:18px;">
+      <div class="disp" style="font-weight:700;font-size:15px;margin-bottom:12px;">${esc(tm.name)}</div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:10px;">
+        <span style="color:var(--muted);">نسبة الإنجاز</span><span class="disp" style="font-weight:800;color:${TEAM_COLORS[i % TEAM_COLORS.length]};">${pct}%</span>
+      </div>
+      <div style="height:8px;background:#EEF0EC;border-radius:99px;overflow:hidden;margin-bottom:14px;">
+        <div style="width:${pct}%;height:100%;background:${TEAM_COLORS[i % TEAM_COLORS.length]};"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-bottom:12px;">
+        <span>إجمالي: ${pool.length}</span><span>منجزة: ${done}</span>
+        <span style="color:${overdue?'var(--red)':'var(--muted)'};font-weight:${overdue?'700':'400'};">متأخرة: ${overdue}</span>
+      </div>
+      <div style="border-top:1px dashed var(--line);padding-top:10px;display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);">
+        ${icon('flask',13)} ${fac.length} مرفق (${facActive} قيد التشغيل)
+      </div>
+    </div>`;
+  }).join("");
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">${cards}</div>`;
+}
+
+/* ---------------- modals / forms ---------------- */
+function inputRow(label, inner, full){
+  return `<div class="field ${full?'full':''}"><label>${label}</label>${inner}</div>`;
+}
+function statusOptions(map, selected){
+  return Object.entries(map).map(([k,v])=>`<option value="${k}" ${k===selected?'selected':''}>${v.label}</option>`).join("");
+}
+function openModal(title, bodyHtml, onSave){
+  const host = document.getElementById('modalHost');
+  if(!host) return;
+  host.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal" id="modalBox">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div class="disp" style="font-weight:700;font-size:16px;">${title}</div>
+          <button id="modalClose" style="background:none;border:none;cursor:pointer;color:var(--muted);">${icon('x',18)}</button>
+        </div>
+        ${bodyHtml}
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+          <button id="modalCancel" style="padding:8px 16px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:13px;cursor:pointer;">إلغاء</button>
+          <button id="modalSave" style="padding:8px 16px;border-radius:9px;border:none;background:var(--navy);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">حفظ</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modalBackdrop').addEventListener('click', (e)=>{ if(e.target.id==='modalBackdrop') closeModal(); });
+  document.getElementById('modalBox').addEventListener('click', (e)=>e.stopPropagation());
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  document.getElementById('modalSave').addEventListener('click', onSave);
+}
+function closeModal(){ const h=document.getElementById('modalHost'); if(h) h.innerHTML=""; }
+
+function buildReportHTML(){
+  const scopeLabel = state.activeTeam === 'all' ? 'كل الإدارات' : teamName(state.activeTeam);
+  const tasks = state.tasks.filter(t => state.activeTeam==='all' || t.team===state.activeTeam);
+  const corr = state.corr.filter(c => state.activeTeam==='all' || c.team===state.activeTeam);
+
+  const taskStats = {
+    total: tasks.length,
+    done: tasks.filter(t=>t.status==='done').length,
+    progress: tasks.filter(t=>t.status==='progress').length,
+    paused: tasks.filter(t=>t.status==='paused').length,
+    overdue: tasks.filter(isOverdue).length,
+  };
+  const corrStats = {
+    total: corr.length,
+    incoming: corr.filter(c=>c.dir==='وارد').length,
+    outgoing: corr.filter(c=>c.dir==='صادر').length,
+    linked: corr.filter(c=>c.linkedTaskId).length,
+    unlinked: corr.filter(c=>!c.linkedTaskId).length,
+  };
+
+  const rptStat = (label, val, color) => `
+    <div class="rpt-stat"><div style="font-size:10px;color:var(--muted);">${label}</div>
+    <div class="rpt-disp" style="font-size:18px;font-weight:800;color:${color};">${val}</div></div>`;
+
+  const badge = (map, key) => {
+    const s = map[key]; if(!s) return '—';
+    return `<span class="rpt-badge" style="background:${s.color}1A;color:${s.color};">${s.label}</span>`;
+  };
+
+  const taskRows = tasks.map(t=>`
+    <tr>
+      <td style="font-weight:700;color:var(--navy2);white-space:nowrap;">${t.key}</td>
+      <td>${esc(t.task)}</td>
+      <td style="white-space:nowrap;">${esc(teamName(t.team))}</td>
+      <td style="white-space:nowrap;">R:${esc(t.R)} / A:${esc(t.A)}</td>
+      <td>${badge(STATUS, t.status)}</td>
+      <td style="white-space:nowrap;">${t.dueDate||'—'}${isOverdue(t)?' <span style="color:var(--red);font-weight:700;">(متأخرة)</span>':''}</td>
+    </tr>`).join("") || `<tr><td colspan="6" style="text-align:center;color:var(--muted);">لا توجد مهام ضمن هذا النطاق</td></tr>`;
+
+  const corrRows = corr.map(c=>`
+    <tr>
+      <td style="white-space:nowrap;">${esc(c.transactionNo||'—')}</td>
+      <td style="font-weight:700;color:var(--navy2);white-space:nowrap;">${c.key}</td>
+      <td>${esc(c.name)}</td>
+      <td style="white-space:nowrap;">${esc(teamName(c.team))}</td>
+      <td style="white-space:nowrap;">${c.dir}</td>
+      <td style="white-space:nowrap;">${c.date}</td>
+      <td>${badge(STATUS, c.status)}</td>
+    </tr>`).join("") || `<tr><td colspan="7" style="text-align:center;color:var(--muted);">لا توجد معاملات ضمن هذا النطاق</td></tr>`;
+
+  const now = new Date();
+  const genDate = now.toLocaleDateString('ar-SA', { year:'numeric', month:'long', day:'numeric' });
+  const genTime = now.toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit' });
+
+  return `
+    <div class="rpt-wrap">
+      <div class="rpt-header">
+        <div class="rpt-disp" style="font-size:19px;font-weight:800;">معهد وتيرا — الإدارة التنفيذية</div>
+        <div style="font-size:12.5px;color:#B9C2D0;margin-top:4px;">تقرير مهام RACI والتراسل</div>
+        <div style="font-size:11px;color:#B9C2D0;margin-top:8px;">نطاق التقرير: ${esc(scopeLabel)} · تاريخ الإنشاء: ${genDate} — ${genTime}</div>
+      </div>
+
+      <div class="rpt-section-title">مؤشرات مهام RACI</div>
+      <div class="rpt-stats">
+        ${rptStat("إجمالي المهام", taskStats.total, "var(--navy2)")}
+        ${rptStat("منجزة", taskStats.done, "var(--green)")}
+        ${rptStat("تحت الإجراء", taskStats.progress, "var(--teal)")}
+        ${rptStat("معلقة", taskStats.paused, "var(--muted)")}
+        ${rptStat("متأخرة", taskStats.overdue, "var(--red)")}
+      </div>
+      <table>
+        <thead><tr>${["المرجع","المهمة","الإدارة","الأدوار","الحالة","تاريخ التسليم"].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${taskRows}</tbody>
+      </table>
+
+      <div class="rpt-section-title">مؤشرات التراسل</div>
+      <div class="rpt-stats">
+        ${rptStat("إجمالي المعاملات", corrStats.total, "var(--navy2)")}
+        ${rptStat("وارد", corrStats.incoming, "var(--blue)")}
+        ${rptStat("صادر", corrStats.outgoing, "var(--teal)")}
+        ${rptStat("مرتبطة بمهمة", corrStats.linked, "var(--green)")}
+        ${rptStat("بدون ربط", corrStats.unlinked, "var(--amber)")}
+      </div>
+      <table>
+        <thead><tr>${["رقم المعاملة","المرجع","اسم المعاملة","الإدارة","صادر/وارد","التاريخ","الحالة"].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${corrRows}</tbody>
+      </table>
+
+      <div class="rpt-footer">تم إنشاء هذا التقرير تلقائيًا من لوحة متابعة معهد وتيرا — ${genDate}</div>
+    </div>`;
+}
+
+function printReport(){
+  const host = document.getElementById('wt-print-report');
+  if(!host) return;
+  host.innerHTML = buildReportHTML();
+  window.print();
+}
+
+function showBackupModal(text, stamp, autoDownloadWorked){
+  const host = document.getElementById('modalHost');
+  if(!host) return;
+  host.innerHTML = `
+    <div class="modal-backdrop" id="modalBackdrop">
+      <div class="modal" id="modalBox" style="max-width:640px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div class="disp" style="font-weight:700;font-size:16px;">نسخة احتياطية — wateera-backup-${stamp}.json</div>
+          <button id="modalClose" style="background:none;border:none;cursor:pointer;color:var(--muted);">${icon('x',18)}</button>
+        </div>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">
+          ${autoDownloadWorked
+            ? 'إذا نزل الملف تلقائيًا لجهازك، خلاص انتهيت. وإذا ما نزل (شائع داخل بيئة المحادثة)، انسخ المحتوى بالأسفل والصقه بملف نصي جديد واحفظه بامتداد <b>.json</b>.'
+            : 'التنزيل التلقائي ما اشتغل. انسخ المحتوى بالأسفل بالكامل، افتح محرر نصوص (Notepad مثلاً)، الصقه، واحفظ الملف بامتداد <b>.json</b>.'}
+        </div>
+        <textarea id="backupText" readonly style="width:100%;height:220px;font-family:monospace;font-size:11.5px;padding:10px;border-radius:8px;border:1px solid var(--line);resize:vertical;direction:ltr;text-align:left;">${esc(text)}</textarea>
+        <div id="copyMsg" style="font-size:12px;color:var(--green);margin-top:6px;min-height:16px;"></div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px;">
+          <button id="modalCancel" style="padding:8px 16px;border-radius:9px;border:1px solid var(--line);background:#fff;font-size:13px;cursor:pointer;">إغلاق</button>
+          <button id="copyBackupBtn" style="display:flex;align-items:center;gap:6px;padding:8px 16px;border-radius:9px;border:none;background:var(--navy);color:#fff;font-size:13px;font-weight:600;cursor:pointer;">${icon('download',14)} نسخ الكل</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('modalBackdrop').addEventListener('click', (e)=>{ if(e.target.id==='modalBackdrop') closeModal(); });
+  document.getElementById('modalBox').addEventListener('click', (e)=>e.stopPropagation());
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modalCancel').addEventListener('click', closeModal);
+  const textarea = document.getElementById('backupText');
+  document.getElementById('copyBackupBtn').addEventListener('click', ()=>{
+    textarea.focus(); textarea.select();
+    let copied = false;
+    try{ copied = document.execCommand('copy'); }catch(e){ copied = false; }
+    if(!copied && navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(()=>{
+        document.getElementById('copyMsg').textContent = "تم النسخ ✓ — الصقه بملف نصي واحفظه بامتداد .json";
+      });
+    } else {
+      document.getElementById('copyMsg').textContent = copied ? "تم النسخ ✓ — الصقه بملف نصي واحفظه بامتداد .json" : "تعذّر النسخ التلقائي — حدد النص يدويًا وانسخه (Ctrl+C)";
+    }
+  });
+}
+
+function openTaskForm(existing){
+  const isEdit = !!existing;
+  const labs = state.facilities.filter(f=>f.kind==='مختبر');
+  const stations = state.facilities.filter(f=>f.kind==='محطة تجريبية');
+  const selectedFacility = existing?.linkedFacilityId || "";
+  const facilityOptionsHtml = () => `
+    <option value="">بدون ربط</option>
+    ${labs.length ? `<optgroup label="المختبرات">${labs.map(fa=>`<option value="${fa.id}" ${fa.id===selectedFacility?'selected':''}>${fa.key} — ${esc(fa.name)}</option>`).join("")}</optgroup>` : ''}
+    ${stations.length ? `<optgroup label="المحطات التجريبية">${stations.map(fa=>`<option value="${fa.id}" ${fa.id===selectedFacility?'selected':''}>${fa.key} — ${esc(fa.name)}</option>`).join("")}</optgroup>` : ''}
+  `;
+  const initialTeam = existing?.team || state.teams[0].id;
+  const body = `
+    <div class="fgrid">
+      ${inputRow("رقم المرجع (اختياري)", `<input type="text" id="f_key" placeholder="يُولَّد تلقائيًا" value="${esc(existing?.key||'')}" ${isEdit?'disabled':''}>`)}
+      ${inputRow("الفريق", `<select id="f_team">${teamOptions(initialTeam)}</select>`)}
+      ${inputRow("مختبر / محطة مرتبطة (اختياري)", `<select id="f_facility">${facilityOptionsHtml()}</select>`, true)}
+      ${inputRow("وصف المهمة", `<input type="text" id="f_task" value="${esc(existing?.task||'')}">`, true)}
+      ${inputRow("نوع المهمة", `<input type="text" id="f_type" value="${esc(existing?.type||'بحثية')}">`)}
+      ${inputRow("الحالة", `<select id="f_status">${statusOptions(STATUS, existing?.status || 'progress')}</select>`)}
+      ${inputRow("المنفذ (R)", `<input type="text" id="f_R" value="${esc(existing?.R||'')}">`)}
+      ${inputRow("المسؤول (A)", `<input type="text" id="f_A" value="${esc(existing?.A||'')}">`)}
+      ${inputRow("المستشار (C)", `<input type="text" id="f_C" value="${esc(existing?.C||'')}">`)}
+      ${inputRow("الإشعار (I)", `<input type="text" id="f_I" value="${esc(existing?.I||'')}">`)}
+      ${inputRow("تاريخ التسليم", `<input type="date" id="f_due" value="${existing?.dueDate || todayISO()}">`)}
+      ${isEdit ? inputRow("ملاحظات", `<input type="text" id="f_notes" value="${esc(existing?.notes||'')}">`, true) : ''}
+    </div>`;
+  openModal(isEdit ? "تعديل مهمة RACI" : "إضافة مهمة RACI", body, ()=>{
+    const task = document.getElementById('f_task').value.trim();
+    if(!task) return;
+    const team = document.getElementById('f_team').value;
+    const facilityId = document.getElementById('f_facility').value || null;
+
+    if(isEdit){
+      const t = state.tasks.find(x=>x.id===existing.id);
+      if(t){
+        t.team = team; t.task = task;
+        t.type = document.getElementById('f_type').value;
+        t.R = document.getElementById('f_R').value;
+        t.A = document.getElementById('f_A').value;
+        t.C = document.getElementById('f_C').value;
+        t.I = document.getElementById('f_I').value;
+        t.status = document.getElementById('f_status').value;
+        t.dueDate = document.getElementById('f_due').value;
+        t.notes = document.getElementById('f_notes').value;
+        t.linkedFacilityId = facilityId;
+      }
+      closeModal(); render(); saveData();
+      return;
+    }
+
+    const id = nextId('r');
+    const key = document.getElementById('f_key').value.trim() || `K-${idCounter}`;
+    state.tasks.push({
+      id, key, team, task,
+      type: document.getElementById('f_type').value, R: document.getElementById('f_R').value,
+      A: document.getElementById('f_A').value, C: document.getElementById('f_C').value, I: document.getElementById('f_I').value,
+      status: document.getElementById('f_status').value, dueDate: document.getElementById('f_due').value, notes:"",
+      linkedCorrId:null, linkedFacilityId: facilityId,
+    });
+    closeModal(); render(); saveData();
+  });
+}
+
+function openCorrForm(existing){
+  const isEdit = !!existing;
+  const body = `
+    <div class="fgrid">
+      ${inputRow("رقم المعاملة", `<input type="text" id="c_txn" placeholder="مثال: 2026/1450" value="${esc(existing?.transactionNo||'')}">`)}
+      ${inputRow("رقم المرجع (اختياري)", `<input type="text" id="c_key" placeholder="يُولَّد تلقائيًا" value="${esc(existing?.key||'')}" ${isEdit?'disabled':''}>`)}
+      ${inputRow("الفريق", `<select id="c_team">${teamOptions(existing?.team || state.teams[0].id)}</select>`)}
+      ${inputRow("اسم المعاملة", `<input type="text" id="c_name" value="${esc(existing?.name||'')}">`, true)}
+      ${inputRow("داخلي / خارجي", `<select id="c_scope"><option ${existing?.scope==='داخلي'?'selected':''}>داخلي</option><option ${existing?.scope==='خارجي'?'selected':''}>خارجي</option></select>`)}
+      ${inputRow("صادر / وارد", `<select id="c_dir"><option ${existing?.dir==='وارد'?'selected':''}>وارد</option><option ${existing?.dir==='صادر'?'selected':''}>صادر</option></select>`)}
+      ${inputRow("المحالة إليه", `<input type="text" id="c_ref" value="${esc(existing?.referredTo||'')}">`)}
+      ${inputRow("تاريخ المعاملة", `<input type="date" id="c_date" value="${existing?.date || todayISO()}">`)}
+      ${isEdit ? inputRow("الحالة", `<select id="c_status">${statusOptions(STATUS, existing?.status || 'progress')}</select>`) : ''}
+    </div>
+    ${isEdit ? '' : `<label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;cursor:pointer;">
+      <input type="checkbox" id="c_createTask" checked> إنشاء مهمة RACI مرتبطة تلقائيًا لمتابعة هذه المعاملة
+    </label>`}`;
+  openModal(isEdit ? "تعديل معاملة تراسل" : "إضافة معاملة تراسل", body, ()=>{
+    const name = document.getElementById('c_name').value.trim();
+    if(!name) return;
+    const team = document.getElementById('c_team').value;
+    const referredTo = document.getElementById('c_ref').value;
+    const transactionNo = document.getElementById('c_txn').value.trim();
+
+    if(isEdit){
+      const c = state.corr.find(x=>x.id===existing.id);
+      if(c){
+        c.transactionNo = transactionNo; c.team = team; c.name = name;
+        c.scope = document.getElementById('c_scope').value;
+        c.dir = document.getElementById('c_dir').value;
+        c.referredTo = referredTo;
+        c.date = document.getElementById('c_date').value;
+        c.status = document.getElementById('c_status').value;
+      }
+      closeModal(); render(); saveData();
+      return;
+    }
+
+    const cid = nextId('c');
+    const key = document.getElementById('c_key').value.trim() || `K-${idCounter}`;
+    const createTask = document.getElementById('c_createTask').checked;
+    state.corr.push({
+      id: cid, key, transactionNo, team, scope: document.getElementById('c_scope').value, dir: document.getElementById('c_dir').value,
+      dept:"الإدارة التنفيذية", referredTo, date: document.getElementById('c_date').value, status:"progress", name,
+      linkedTaskId: createTask ? "PENDING" : null,
+    });
+    if(createTask){
+      const tid = nextId('r');
+      state.tasks.push({
+        id: tid, key, team, task:`متابعة معاملة: ${name}`, type:"تراسل", R: referredTo, A:"—", C:"—", I:"—",
+        status:"progress", dueDate:"", notes:`منشأة تلقائيًا من معاملة ${key}`, linkedCorrId: cid, linkedFacilityId:null,
+      });
+      const c = state.corr.find(x=>x.id===cid); c.linkedTaskId = tid;
+    }
+    closeModal(); render(); saveData();
+  });
+}
+
+function openFacilityForm(presetKind, existing){
+  const isEdit = !!existing;
+  const kind = existing ? existing.kind : (presetKind || "مختبر");
+  const body = `
+    <div class="fgrid">
+      ${inputRow("رقم المرجع (اختياري)", `<input type="text" id="fac_key" placeholder="يُولَّد تلقائيًا" value="${esc(existing?.key||'')}" ${isEdit?'disabled':''}>`)}
+      ${inputRow("النوع", `<select id="fac_kind"><option ${kind==='مختبر'?'selected':''}>مختبر</option><option ${kind==='محطة تجريبية'?'selected':''}>محطة تجريبية</option></select>`)}
+      ${inputRow("الاسم", `<input type="text" id="fac_name" value="${esc(existing?.name||'')}">`, true)}
+      ${inputRow("الفريق المسؤول", `<select id="fac_team">${teamOptions(existing?.team || state.teams[0].id)}</select>`)}
+      ${inputRow("الحالة", `<select id="fac_status">${statusOptions(LAB_STATUS, existing?.status || 'active')}</select>`)}
+      ${inputRow("الموقع", `<input type="text" id="fac_loc" value="${esc(existing?.location||'')}">`)}
+      ${inputRow("السعة / الطاقة الاستيعابية", `<input type="text" id="fac_cap" value="${esc(existing?.capacity||'')}">`)}
+      ${inputRow("ملاحظات", `<input type="text" id="fac_notes" value="${esc(existing?.notes||'')}">`, true)}
+    </div>
+    ${isEdit ? '' : `<label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;cursor:pointer;">
+      <input type="checkbox" id="fac_createTask"> إنشاء مهمة RACI مرتبطة تلقائيًا (صيانة / متابعة تشغيل)
+    </label>`}`;
+  openModal(isEdit ? "تعديل " + (kind === "مختبر" ? "مختبر" : "محطة تجريبية") : (kind === "مختبر" ? "إضافة مختبر" : "إضافة محطة تجريبية"), body, ()=>{
+    const name = document.getElementById('fac_name').value.trim();
+    if(!name) return;
+    const status = document.getElementById('fac_status').value;
+    const team = document.getElementById('fac_team').value;
+
+    if(isEdit){
+      const f = state.facilities.find(x=>x.id===existing.id);
+      if(f){
+        f.kind = document.getElementById('fac_kind').value;
+        f.name = name; f.team = team; f.status = status;
+        f.location = document.getElementById('fac_loc').value;
+        f.capacity = document.getElementById('fac_cap').value;
+        f.notes = document.getElementById('fac_notes').value;
+      }
+      closeModal(); render(); saveData();
+      return;
+    }
+
+    const fid = nextId('f');
+    const key = document.getElementById('fac_key').value.trim() || `F-${idCounter}`;
+    const createTask = document.getElementById('fac_createTask').checked;
+    state.facilities.push({
+      id: fid, key, kind: document.getElementById('fac_kind').value, name, team, status,
+      location: document.getElementById('fac_loc').value, capacity: document.getElementById('fac_cap').value,
+      notes: document.getElementById('fac_notes').value,
+    });
+    if(createTask){
+      state.tasks.push({
+        id: nextId('r'), key, team, task: status==='maintenance' ? `صيانة: ${name}` : `متابعة تشغيل: ${name}`,
+        type:"صيانة", R:"—", A:"—", C:"—", I:"—", status: status==='maintenance' ? "progress" : "paused",
+        dueDate:"", notes:`منشأة تلقائيًا من مرفق ${key}`, linkedCorrId:null, linkedFacilityId: fid,
+      });
+    }
+    closeModal(); render(); saveData();
+  });
+}
+
+/* ---------------- events ---------------- */
+function bindEvents(){
+  root.querySelectorAll('[data-tab]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ state.tab = btn.getAttribute('data-tab'); state.search=""; render(); });
+  });
+  root.querySelectorAll('[data-team]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ state.activeTeam = btn.getAttribute('data-team'); render(); });
+  });
+  const searchInput = document.getElementById('searchInput');
+  if(searchInput){
+    searchInput.addEventListener('input', (e)=>{ state.search = e.target.value; render(); searchInput.focus(); });
+  }
+  const addTaskBtn = document.getElementById('addTaskBtn'); if(addTaskBtn) addTaskBtn.addEventListener('click', ()=>openTaskForm());
+  const addCorrBtn = document.getElementById('addCorrBtn'); if(addCorrBtn) addCorrBtn.addEventListener('click', ()=>openCorrForm());
+  const addLabBtn = document.getElementById('addFacilityBtn_labs'); if(addLabBtn) addLabBtn.addEventListener('click', ()=>openFacilityForm("مختبر"));
+  const addStationBtn = document.getElementById('addFacilityBtn_stations'); if(addStationBtn) addStationBtn.addEventListener('click', ()=>openFacilityForm("محطة تجريبية"));
+  root.querySelectorAll('.editTaskBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const t = state.tasks.find(x=>x.id===btn.getAttribute('data-id'));
+      if(t) openTaskForm(t);
+    });
+  });
+  root.querySelectorAll('.editCorrBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const c = state.corr.find(x=>x.id===btn.getAttribute('data-id'));
+      if(c) openCorrForm(c);
+    });
+  });
+  root.querySelectorAll('.editFacilityBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const f = state.facilities.find(x=>x.id===btn.getAttribute('data-id'));
+      if(f) openFacilityForm(f.kind, f);
+    });
+  });
+
+  const reportBtn = document.getElementById('reportBtn');
+  if(reportBtn) reportBtn.addEventListener('click', printReport);
+
+  const exportBtn = document.getElementById('exportBtn');
+  if(exportBtn) exportBtn.addEventListener('click', ()=>{
+    const payload = { teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, idCounter, exportedAt: new Date().toISOString() };
+    const text = JSON.stringify(payload, null, 2);
+    const stamp = new Date().toISOString().slice(0,10);
+
+    let autoDownloadWorked = false;
+    try{
+      const blob = new Blob([text], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `wateera-backup-${stamp}.json`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      autoDownloadWorked = true;
+    } catch(e){ autoDownloadWorked = false; }
+
+    showBackupModal(text, stamp, autoDownloadWorked);
+  });
+
+  const importBtn = document.getElementById('importBtn');
+  const importFile = document.getElementById('importFile');
+  if(importBtn && importFile){
+    importBtn.addEventListener('click', ()=> importFile.click());
+    importFile.addEventListener('change', (e)=>{
+      const file = e.target.files[0];
+      if(!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev)=>{
+        try{
+          const data = JSON.parse(ev.target.result);
+          if(!data.teams || !data.tasks || !data.corr || !data.facilities) throw new Error("ملف غير صالح");
+          state.teams = data.teams; state.tasks = data.tasks; state.corr = data.corr; state.facilities = data.facilities;
+          idCounter = data.idCounter || idCounter;
+          render(); saveData();
+        } catch(err){
+          alert("تعذّرت قراءة ملف النسخة الاحتياطية — تأكد أنه ملف JSON صادر من هذه اللوحة.");
+        }
+        importFile.value = "";
+      };
+      reader.readAsText(file);
+    });
+  }
+}
+
+loadData();
+})();
+</script>

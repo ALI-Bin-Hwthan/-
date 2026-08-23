@@ -1,4 +1,5 @@
 <div id="wateera-root" dir="rtl"></div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap');
   #wateera-root{
@@ -101,7 +102,9 @@ function icon(name, size, color){
 /* ---------------- data ---------------- */
 const TEAM_COLORS = ["#4B5768", "#0E7C7B", "#8A5CF6", "#C98A2C", "#3E6FB0", "#B5495B", "#5B8C5A"];
 const STORAGE_KEY = "wateera-institute-tracker-v1";
-const ACCESS_PIN = "2580"; // غيّر هذا الرمز لأي رقم تفضله — رادع دخول عرضي، وليس حماية أمنية حقيقية
+const GOOGLE_CLIENT_ID = "306441436345-02jutd2medpqm9qd3v471e7f7fgro70o.apps.googleusercontent.com";
+const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const DRIVE_FILE_NAME = "wateera-data.json";
 let idCounter = 100;
 const nextId = (p) => p + (idCounter++);
 
@@ -145,11 +148,16 @@ const state = {
   tab: "dashboard",
   activeTeam: "all",
   search: "",
+  gisReady: false,
   ready: false,
   unlocked: false,
   trialCleared: false,
-  saveStatus: "جارٍ تحميل البيانات...",
+  saveStatus: "جارٍ التهيئة...",
+  userEmail: "",
 };
+let driveAccessToken = null;
+let driveFileId = null;
+let tokenClient = null;
 
 const STATUS = {
   done: { label:"منجزة", color:"#2F8F5B", icon:"check" },
@@ -185,41 +193,111 @@ function teamOptions(selected){
   return state.teams.map(t=>`<option value="${t.id}" ${t.id===selected?"selected":""}>${esc(t.name)}</option>`).join("");
 }
 
-/* ---------------- persistence ---------------- */
-/* ---------------- storage abstraction: cloud (Claude) أو محلي بالمتصفح كبديل ---------------- */
-const hasCloudStorage = (typeof window !== 'undefined') && !!window.storage;
-let storageMode = hasCloudStorage ? 'cloud' : 'local';
-
-async function storageGet(key){
-  if(hasCloudStorage){
-    const res = await window.storage.get(key, true);
-    return res.value;
-  }
-  const v = localStorage.getItem(key);
-  if(v === null || v === undefined) throw new Error('not found');
-  return v;
-}
-async function storageSet(key, value){
-  if(hasCloudStorage){
-    await window.storage.set(key, value, true);
-    return;
-  }
-  localStorage.setItem(key, value);
+/* ---------------- Google Sign-In + Drive persistence ---------------- */
+function waitForGIS(cb){
+  if(window.google && window.google.accounts && window.google.accounts.oauth2){ cb(); }
+  else setTimeout(()=>waitForGIS(cb), 100);
 }
 
-async function loadData(){
+function initGoogleAuth(){
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: DRIVE_SCOPE,
+    callback: async (resp) => {
+      if(resp.error){
+        state.saveStatus = "تعذّر تسجيل الدخول: " + resp.error;
+        render();
+        return;
+      }
+      driveAccessToken = resp.access_token;
+      state.unlocked = true;
+      state.saveStatus = "جارٍ تحميل البيانات من Google Drive...";
+      render();
+      await loadDataFromDrive();
+    },
+  });
+}
+
+function signIn(){
+  if(!tokenClient) return;
+  tokenClient.requestAccessToken();
+}
+
+function signOut(){
+  if(driveAccessToken && window.google){
+    google.accounts.oauth2.revoke(driveAccessToken, ()=>{});
+  }
+  driveAccessToken = null;
+  driveFileId = null;
+  state.unlocked = false;
+  state.ready = false;
+  render();
+}
+
+async function driveFindFile(){
+  const q = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name)`, {
+    headers: { Authorization: `Bearer ${driveAccessToken}` }
+  });
+  if(!res.ok) throw new Error("drive_list_failed");
+  const data = await res.json();
+  return (data.files && data.files[0]) ? data.files[0].id : null;
+}
+
+async function driveGetFileContent(fileId){
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+    headers: { Authorization: `Bearer ${driveAccessToken}` }
+  });
+  if(!res.ok) throw new Error("drive_get_failed");
+  return await res.text();
+}
+
+async function driveCreateFile(content){
+  const metadata = { name: DRIVE_FILE_NAME, mimeType: "application/json" };
+  const boundary = "-------wateeraBoundary";
+  const body =
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
+    `--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n--${boundary}--`;
+  const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${driveAccessToken}`, "Content-Type": `multipart/related; boundary=${boundary}` },
+    body,
+  });
+  if(!res.ok) throw new Error("drive_create_failed");
+  const data = await res.json();
+  return data.id;
+}
+
+async function driveUpdateFile(fileId, content){
+  const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${driveAccessToken}`, "Content-Type": "application/json" },
+    body: content,
+  });
+  if(!res.ok) throw new Error("drive_update_failed");
+}
+
+async function loadDataFromDrive(){
   try{
-    const raw = await storageGet(STORAGE_KEY);
-    const data = JSON.parse(raw);
-    state.teams = data.teams; state.tasks = data.tasks; state.corr = data.corr; state.facilities = data.facilities;
-    idCounter = data.idCounter || 100;
-    state.trialCleared = !!data.trialCleared;
-    state.saveStatus = storageMode === 'cloud' ? "تم تحميل آخر نسخة محفوظة (سحابة مشتركة)" : "تم تحميل آخر نسخة محفوظة (هذا المتصفح فقط)";
+    driveFileId = await driveFindFile();
+    if(driveFileId){
+      const raw = await driveGetFileContent(driveFileId);
+      const data = JSON.parse(raw);
+      state.teams = data.teams; state.tasks = data.tasks; state.corr = data.corr; state.facilities = data.facilities;
+      idCounter = data.idCounter || 100;
+      state.trialCleared = !!data.trialCleared;
+      state.saveStatus = "تم تحميل البيانات من Google Drive";
+    } else {
+      const seed = getSeedData();
+      state.teams = seed.teams; state.tasks = seed.tasks; state.corr = seed.corr; state.facilities = seed.facilities;
+      idCounter = seed.idCounter;
+      state.saveStatus = "لا يوجد ملف سابق — جارٍ إنشاء أول نسخة بـ Drive...";
+    }
   } catch(e){
     const seed = getSeedData();
     state.teams = seed.teams; state.tasks = seed.tasks; state.corr = seed.corr; state.facilities = seed.facilities;
     idCounter = seed.idCounter;
-    state.saveStatus = "بيانات ابتدائية — جارٍ الحفظ الأول...";
+    state.saveStatus = "تعذّر الاتصال بـ Drive: " + e.message;
   }
   let needsSave = ensureBaselineTeams();
   needsSave = ensureBaselineFacilities() || needsSave;
@@ -228,7 +306,7 @@ async function loadData(){
     state.trialCleared = true;
     needsSave = true;
   }
-  if(needsSave) saveData();
+  if(needsSave) await saveDataToDrive();
   state.ready = true;
   render();
 }
@@ -283,16 +361,20 @@ function ensureBaselineFacilities(){
   return changed;
 }
 
-async function saveData(){
-  updateSaveIndicator("جارٍ الحفظ...", "#B9C2D0");
+async function saveDataToDrive(){
+  updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
     const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, idCounter, trialCleared: state.trialCleared });
-    await storageSet(STORAGE_KEY, payload);
+    if(!driveFileId){
+      driveFileId = await driveCreateFile(payload);
+    } else {
+      await driveUpdateFile(driveFileId, payload);
+    }
     const t = new Date().toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit' });
-    state.saveStatus = (storageMode === 'cloud' ? "آخر حفظ (سحابة مشتركة): " : "آخر حفظ (هذا المتصفح فقط): ") + t;
+    state.saveStatus = "آخر حفظ في Google Drive: " + t;
     updateSaveIndicator(state.saveStatus, "#B9C2D0");
   } catch(e){
-    state.saveStatus = "تعذّر الحفظ — التعديل محلي مؤقتًا فقط";
+    state.saveStatus = "تعذّر الحفظ في Drive — " + e.message;
     updateSaveIndicator(state.saveStatus, "#F2A6A0");
   }
 }
@@ -305,12 +387,16 @@ function updateSaveIndicator(text, color){
 const root = document.getElementById('wateera-root');
 
 function render(){
-  if(!state.ready){
-    root.innerHTML = `<div style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px;">${state.saveStatus}</div>`;
+  if(!state.gisReady){
+    root.innerHTML = `<div style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px;">جارٍ التهيئة...</div>`;
     return;
   }
   if(!state.unlocked){
-    renderLockScreen();
+    renderSignInScreen();
+    return;
+  }
+  if(!state.ready){
+    root.innerHTML = `<div style="padding:60px 20px;text-align:center;color:var(--muted);font-size:14px;">${esc(state.saveStatus)}</div>`;
     return;
   }
   root.innerHTML = `
@@ -328,36 +414,24 @@ function render(){
   bindEvents();
 }
 
-function renderLockScreen(){
+function renderSignInScreen(){
   root.innerHTML = `
     <div dir="rtl" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;">
-      <div class="card" style="width:100%;max-width:360px;padding:28px 24px;text-align:center;">
+      <div class="card" style="width:100%;max-width:380px;padding:28px 24px;text-align:center;">
         <div style="width:52px;height:52px;border-radius:14px;background:var(--navy);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;color:#fff;">
           ${icon('lock',22)}
         </div>
         <div class="disp" style="font-size:17px;font-weight:800;margin-bottom:4px;">معهد وتيرا — الإدارة التنفيذية</div>
-        <div style="font-size:12.5px;color:var(--muted);margin-bottom:18px;">أدخل رمز الدخول للمتابعة</div>
-        <input id="pinInput" type="password" inputmode="numeric" maxlength="12" placeholder="••••" style="text-align:center;font-size:18px;letter-spacing:6px;padding:10px;">
-        <div id="pinError" style="color:var(--red);font-size:12px;margin-top:8px;min-height:16px;"></div>
-        <button id="pinSubmit" style="width:100%;margin-top:10px;padding:10px;border-radius:9px;border:none;background:var(--navy);color:#fff;font-size:13.5px;font-weight:700;cursor:pointer;">دخول</button>
+        <div style="font-size:12.5px;color:var(--muted);margin-bottom:20px;">سجّل الدخول بحساب Google المصرَّح له للمتابعة — بياناتك تُحفظ في Google Drive الخاص بك</div>
+        <button id="googleSignInBtn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:11px;border-radius:9px;border:1px solid var(--line);background:#fff;color:var(--ink);font-size:13.5px;font-weight:700;cursor:pointer;">
+          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.4 29.3 35 24 35c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 5.1 29.5 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.5-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 7.1 29.5 5 24 5c-7.6 0-14.1 4.3-17.7 10.7z"/><path fill="#4CAF50" d="M24 45c5.4 0 10.3-2.1 14-5.5l-6.4-5.4C29.5 35.6 26.9 36.5 24 36.5c-5.3 0-9.7-3.4-11.3-8.1l-6.6 5.1C9.8 39.6 16.3 45 24 45z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-0.8 2.4-2.4 4.5-4.4 5.9l6.4 5.4C40.4 36.4 43 30.8 43 24c0-1.4-0.1-2.5-0.4-3.5z"/></svg>
+          تسجيل الدخول بحساب Google
+        </button>
+        <div id="signInMsg" style="color:var(--muted);font-size:11.5px;margin-top:12px;min-height:16px;">${esc(state.saveStatus.includes('تعذّر') ? state.saveStatus : '')}</div>
       </div>
     </div>`;
-  const input = document.getElementById('pinInput');
-  const btn = document.getElementById('pinSubmit');
-  const err = document.getElementById('pinError');
-  const tryUnlock = ()=>{
-    if(input.value === ACCESS_PIN){
-      state.unlocked = true;
-      render();
-    } else {
-      err.textContent = "الرمز غير صحيح — حاول مرة أخرى";
-      input.value = "";
-      input.focus();
-    }
-  };
-  btn.addEventListener('click', tryUnlock);
-  input.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') tryUnlock(); });
-  input.focus();
+  const btn = document.getElementById('googleSignInBtn');
+  if(btn) btn.addEventListener('click', signIn);
 }
 
 function renderHeader(){
@@ -375,14 +449,11 @@ function renderHeader(){
       <div>
         <div class="disp" style="font-size:22px;font-weight:800;">معهد وتيرا <span style="color:var(--teal);font-weight:700;">— الإدارة التنفيذية</span></div>
         <div style="font-size:13px;color:#B9C2D0;margin-top:4px;">متابعة موحّدة لمهام RACI والتراسل والمرافق عبر أربعة إدارات</div>
-        <div style="font-size:11px;color:${storageMode==='cloud'?'#9FE0C9':'#F2C97D'};margin-top:4px;font-weight:600;">
-          ${storageMode==='cloud'
-            ? '☁️ الحفظ سحابي مشترك — يظهر لأي شخص يفتح نفس الرابط داخل كلود'
-            : '💻 الحفظ محلي بهذا المتصفح فقط — البيانات لا تظهر على أي جهاز أو متصفح ثاني'}
-        </div>
+        <div style="font-size:11px;color:#9FE0C9;margin-top:4px;font-weight:600;">☁️ محفوظ في Google Drive الخاص بحسابك — لا يظهر لأحد غيرك إلا بمن تشاركه أنت</div>
         <div id="saveIndicator" style="font-size:11px;color:#B9C2D0;margin-top:6px;">${esc(state.saveStatus)}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
+        <button id="signOutBtn" title="تسجيل الخروج" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);color:#E4E9F0;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('lock',14)} تسجيل الخروج</button>
         <button id="reportBtn" title="تقرير PDF احترافي" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);color:#E4E9F0;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('report',14)} تقرير PDF</button>
         <button id="exportBtn" title="تنزيل نسخة احتياطية (JSON)" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);color:#E4E9F0;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('download',14)} نسخة احتياطية</button>
         <button id="importBtn" title="استيراد نسخة احتياطية (JSON)" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);color:#E4E9F0;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('upload',14)} استيراد</button>
@@ -895,7 +966,7 @@ function openTaskForm(existing){
         t.notes = document.getElementById('f_notes').value;
         t.linkedFacilityId = facilityId;
       }
-      closeModal(); render(); saveData();
+      closeModal(); render(); saveDataToDrive();
       return;
     }
 
@@ -908,7 +979,7 @@ function openTaskForm(existing){
       status: document.getElementById('f_status').value, dueDate: document.getElementById('f_due').value, notes:"",
       linkedCorrId:null, linkedFacilityId: facilityId,
     });
-    closeModal(); render(); saveData();
+    closeModal(); render(); saveDataToDrive();
   });
 }
 
@@ -946,7 +1017,7 @@ function openCorrForm(existing){
         c.date = document.getElementById('c_date').value;
         c.status = document.getElementById('c_status').value;
       }
-      closeModal(); render(); saveData();
+      closeModal(); render(); saveDataToDrive();
       return;
     }
 
@@ -966,7 +1037,7 @@ function openCorrForm(existing){
       });
       const c = state.corr.find(x=>x.id===cid); c.linkedTaskId = tid;
     }
-    closeModal(); render(); saveData();
+    closeModal(); render(); saveDataToDrive();
   });
 }
 
@@ -1002,7 +1073,7 @@ function openFacilityForm(presetKind, existing){
         f.capacity = document.getElementById('fac_cap').value;
         f.notes = document.getElementById('fac_notes').value;
       }
-      closeModal(); render(); saveData();
+      closeModal(); render(); saveDataToDrive();
       return;
     }
 
@@ -1021,7 +1092,7 @@ function openFacilityForm(presetKind, existing){
         dueDate:"", notes:`منشأة تلقائيًا من مرفق ${key}`, linkedCorrId:null, linkedFacilityId: fid,
       });
     }
-    closeModal(); render(); saveData();
+    closeModal(); render(); saveDataToDrive();
   });
 }
 
@@ -1062,6 +1133,8 @@ function bindEvents(){
 
   const reportBtn = document.getElementById('reportBtn');
   if(reportBtn) reportBtn.addEventListener('click', printReport);
+  const signOutBtn = document.getElementById('signOutBtn');
+  if(signOutBtn) signOutBtn.addEventListener('click', signOut);
 
   const exportBtn = document.getElementById('exportBtn');
   if(exportBtn) exportBtn.addEventListener('click', ()=>{
@@ -1097,7 +1170,7 @@ function bindEvents(){
           if(!data.teams || !data.tasks || !data.corr || !data.facilities) throw new Error("ملف غير صالح");
           state.teams = data.teams; state.tasks = data.tasks; state.corr = data.corr; state.facilities = data.facilities;
           idCounter = data.idCounter || idCounter;
-          render(); saveData();
+          render(); saveDataToDrive();
         } catch(err){
           alert("تعذّرت قراءة ملف النسخة الاحتياطية — تأكد أنه ملف JSON صادر من هذه اللوحة.");
         }
@@ -1108,6 +1181,11 @@ function bindEvents(){
   }
 }
 
-loadData();
+render();
+waitForGIS(()=>{
+  initGoogleAuth();
+  state.gisReady = true;
+  render();
+});
 })();
 </script>

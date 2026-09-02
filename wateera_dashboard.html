@@ -297,6 +297,21 @@ async function driveUpdateFile(fileId, content){
   if(!res.ok) throw new Error("drive_update_failed");
 }
 
+async function driveUploadFile(file, customName){
+  const metadata = { name: customName || file.name, mimeType: file.type || "application/octet-stream" };
+  const form = new FormData();
+  form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+  form.append("file", file);
+  const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${driveAccessToken}` },
+    body: form,
+  });
+  if(!res.ok) throw new Error("drive_upload_failed");
+  const data = await res.json();
+  return { id: data.id, url: data.webViewLink };
+}
+
 async function loadDataFromDrive(){
   try{
     driveFileId = await driveFindFile();
@@ -811,13 +826,14 @@ function docStatCard(label,val,color,ic){
   <div class="disp" style="font-size:28px;font-weight:800;color:${color};margin-top:6px;">${val}</div></div>`;
 }
 
-function docDateCell(dateStr){
+function docDateCell(dateStr, fileUrl){
   const st = docDateStatus(dateStr);
   const s = DOC_STATUS[st];
-  if(!dateStr) return `<span style="color:var(--muted);font-size:11.5px;">—</span>`;
+  const fileLink = fileUrl ? `<a href="${fileUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;color:var(--teal);font-size:10px;font-weight:600;margin-top:2px;">${icon('card',9)} عرض الملف</a>` : '';
+  if(!dateStr) return `<span style="color:var(--muted);font-size:11.5px;">—</span>${fileLink?`<div>${fileLink}</div>`:''}`;
   const d = daysFrom(dateStr);
   const sub = d > 0 ? `منتهية منذ ${d} يوم` : `متبقي ${-d} يوم`;
-  return `<div>${dateStr}<div style="font-size:10.5px;color:${s.color};font-weight:700;margin-top:1px;">${sub}</div></div>`;
+  return `<div>${dateStr}<div style="font-size:10.5px;color:${s.color};font-weight:700;margin-top:1px;">${sub}</div>${fileLink}</div>`;
 }
 
 function renderDocuments(){
@@ -851,10 +867,10 @@ function renderDocuments(){
       <td style="white-space:nowrap;color:var(--muted);">${esc(d.city||'—')}</td>
       <td style="white-space:nowrap;color:var(--muted);">${esc(d.birthPlace||'—')}</td>
       <td style="white-space:nowrap;color:var(--muted);">${esc(d.iqamaNo||'—')}</td>
-      <td style="white-space:nowrap;">${docDateCell(d.iqamaExpiry)}</td>
+      <td style="white-space:nowrap;">${docDateCell(d.iqamaExpiry, d.iqamaFileUrl)}</td>
       <td style="white-space:nowrap;color:var(--muted);">${esc(d.passportNo||'—')}</td>
-      <td style="white-space:nowrap;">${docDateCell(d.passportExpiry)}</td>
-      <td style="white-space:nowrap;">${docDateCell(d.workCardExpiry)}</td>
+      <td style="white-space:nowrap;">${docDateCell(d.passportExpiry, d.passportFileUrl)}</td>
+      <td style="white-space:nowrap;">${docDateCell(d.workCardExpiry, d.workCardFileUrl)}</td>
       <td><button class="linkbtn editDocumentBtn" data-id="${d.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button></td>
     </tr>`;
   }).join("") || `<tr><td colspan="13" style="padding:30px;text-align:center;color:var(--muted);">لا توجد سجلات مطابقة</td></tr>`;
@@ -877,6 +893,7 @@ function renderDocuments(){
 
 function openDocumentForm(existing){
   const isEdit = !!existing;
+  const fileStatus = (url, label) => url ? `<div style="font-size:11px;color:var(--teal);margin-top:4px;">📎 يوجد ${label} مرفق — اختر ملفًا جديدًا لاستبداله</div>` : '';
   const body = `
     <div class="fgrid">
       ${inputRow("معرف الموظف", `<input type="text" id="d_employeeId" value="${esc(existing?.employeeId||'')}">`)}
@@ -890,14 +907,20 @@ function openDocumentForm(existing){
       ${inputRow("مكان الميلاد", `<input type="text" id="d_birthPlace" value="${esc(existing?.birthPlace||'')}">`, true)}
       ${inputRow("رقم الإقامة", `<input type="text" id="d_iqamaNo" value="${esc(existing?.iqamaNo||'')}">`)}
       ${inputRow("تاريخ انتهاء الإقامة", `<input type="date" id="d_iqamaExpiry" value="${existing?.iqamaExpiry||''}">`)}
+      ${inputRow("رفع صورة/PDF الإقامة", `<input type="file" id="d_iqamaFile" accept=".pdf,image/*">${fileStatus(existing?.iqamaFileUrl,'ملف إقامة')}`, true)}
       ${inputRow("رقم الجواز", `<input type="text" id="d_passportNo" value="${esc(existing?.passportNo||'')}">`)}
       ${inputRow("تاريخ انتهاء الجواز", `<input type="date" id="d_passportExpiry" value="${existing?.passportExpiry||''}">`)}
-      ${inputRow("تاريخ انتهاء بطاقة العمل", `<input type="date" id="d_workCardExpiry" value="${existing?.workCardExpiry||''}">`, true)}
+      ${inputRow("رفع صورة/PDF الجواز", `<input type="file" id="d_passportFile" accept=".pdf,image/*">${fileStatus(existing?.passportFileUrl,'ملف جواز')}`, true)}
+      ${inputRow("تاريخ انتهاء بطاقة العمل", `<input type="date" id="d_workCardExpiry" value="${existing?.workCardExpiry||''}">`)}
+      ${inputRow("رفع صورة/PDF بطاقة العمل", `<input type="file" id="d_workCardFile" accept=".pdf,image/*">${fileStatus(existing?.workCardFileUrl,'ملف بطاقة عمل')}`, true)}
       ${inputRow("ملاحظات", `<input type="text" id="d_notes" value="${esc(existing?.notes||'')}">`, true)}
-    </div>`;
-  openModal(isEdit ? "تعديل سجل وثائق" : "إضافة سجل وثائق", body, ()=>{
+    </div>
+    <div id="docUploadMsg" style="font-size:12px;color:var(--muted);margin-top:10px;min-height:16px;"></div>`;
+  openModal(isEdit ? "تعديل سجل وثائق" : "إضافة سجل وثائق", body, async ()=>{
     const name = document.getElementById('d_name').value.trim();
     if(!name) return;
+    const msg = document.getElementById('docUploadMsg');
+    const saveBtn = document.getElementById('modalSave');
     const record = {
       employeeId: document.getElementById('d_employeeId').value,
       name,
@@ -914,7 +937,33 @@ function openDocumentForm(existing){
       passportExpiry: document.getElementById('d_passportExpiry').value,
       workCardExpiry: document.getElementById('d_workCardExpiry').value,
       notes: document.getElementById('d_notes').value,
+      iqamaFileUrl: existing?.iqamaFileUrl || null,
+      passportFileUrl: existing?.passportFileUrl || null,
+      workCardFileUrl: existing?.workCardFileUrl || null,
     };
+
+    const uploads = [
+      { input: document.getElementById('d_iqamaFile'), key: 'iqamaFileUrl', label: 'الإقامة' },
+      { input: document.getElementById('d_passportFile'), key: 'passportFileUrl', label: 'الجواز' },
+      { input: document.getElementById('d_workCardFile'), key: 'workCardFileUrl', label: 'بطاقة العمل' },
+    ].filter(u => u.input && u.input.files && u.input.files[0]);
+
+    if(uploads.length){
+      saveBtn.disabled = true;
+      for(const u of uploads){
+        msg.textContent = `جارٍ رفع ملف ${u.label}...`;
+        try{
+          const fileName = `${name} — ${u.label}`;
+          const uploaded = await driveUploadFile(u.input.files[0], fileName);
+          record[u.key] = uploaded.url;
+        } catch(e){
+          msg.textContent = `تعذّر رفع ملف ${u.label} — تأكّد من اتصالك وحاول مرة أخرى`;
+          saveBtn.disabled = false;
+          return;
+        }
+      }
+    }
+
     if(isEdit){
       const d = state.documents.find(x=>x.id===existing.id);
       if(d) Object.assign(d, record);

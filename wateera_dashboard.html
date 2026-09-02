@@ -816,7 +816,7 @@ function docDateCell(dateStr){
   const s = DOC_STATUS[st];
   if(!dateStr) return `<span style="color:var(--muted);font-size:11.5px;">—</span>`;
   const d = daysFrom(dateStr);
-  const sub = st==='expired' ? `منتهية منذ ${d} يوم` : (st==='soon' ? `متبقي ${-d} يوم` : '');
+  const sub = d > 0 ? `منتهية منذ ${d} يوم` : `متبقي ${-d} يوم`;
   return `<div>${dateStr}<div style="font-size:10.5px;color:${s.color};font-weight:700;margin-top:1px;">${sub}</div></div>`;
 }
 
@@ -837,7 +837,7 @@ function renderDocuments(){
 
   const items = withStatus.filter(d =>
     d.name.includes(state.search) || (d.employeeId||'').includes(state.search) ||
-    (d.iqamaNo||'').includes(state.search) || (d.passportNo||'').includes(state.search) || (d.workCardNo||'').includes(state.search)
+    (d.iqamaNo||'').includes(state.search) || (d.passportNo||'').includes(state.search)
   );
   const rows = items.map(d=>{
     const worst = worstDocStatus(d.iqamaSt, d.passportSt, d.cardSt);
@@ -849,11 +849,11 @@ function renderDocuments(){
       <td><span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(d.team)}"></span>${esc(teamName(d.team))}</span></td>
       <td style="white-space:nowrap;color:var(--muted);">${esc(d.nationality||'—')}</td>
       <td style="white-space:nowrap;color:var(--muted);">${esc(d.city||'—')}</td>
+      <td style="white-space:nowrap;color:var(--muted);">${esc(d.birthPlace||'—')}</td>
       <td style="white-space:nowrap;color:var(--muted);">${esc(d.iqamaNo||'—')}</td>
       <td style="white-space:nowrap;">${docDateCell(d.iqamaExpiry)}</td>
       <td style="white-space:nowrap;color:var(--muted);">${esc(d.passportNo||'—')}</td>
       <td style="white-space:nowrap;">${docDateCell(d.passportExpiry)}</td>
-      <td style="white-space:nowrap;color:var(--muted);">${esc(d.workCardNo||'—')}</td>
       <td style="white-space:nowrap;">${docDateCell(d.workCardExpiry)}</td>
       <td><button class="linkbtn editDocumentBtn" data-id="${d.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button></td>
     </tr>`;
@@ -869,7 +869,7 @@ function renderDocuments(){
     ${toolbar("إضافة سجل","addDocumentBtn")}
     <div class="card" style="overflow:hidden;">
       <div class="scroller" style="overflow-x:auto;">
-        <table><thead><tr>${["معرف الموظف","الاسم","المسمى الوظيفي","الإدارة","الجنسية","المدينة","رقم الإقامة","انتهاء الإقامة","رقم الجواز","انتهاء الجواز","رقم بطاقة العمل","انتهاء البطاقة",""].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <table><thead><tr>${["معرف الموظف","الاسم","المسمى الوظيفي","الإدارة","الجنسية","المدينة","مكان الميلاد","رقم الإقامة","انتهاء الإقامة","رقم الجواز","انتهاء الجواز","انتهاء بطاقة العمل",""].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
         <tbody>${rows}</tbody></table>
       </div>
     </div>`;
@@ -892,8 +892,7 @@ function openDocumentForm(existing){
       ${inputRow("تاريخ انتهاء الإقامة", `<input type="date" id="d_iqamaExpiry" value="${existing?.iqamaExpiry||''}">`)}
       ${inputRow("رقم الجواز", `<input type="text" id="d_passportNo" value="${esc(existing?.passportNo||'')}">`)}
       ${inputRow("تاريخ انتهاء الجواز", `<input type="date" id="d_passportExpiry" value="${existing?.passportExpiry||''}">`)}
-      ${inputRow("رقم بطاقة العمل", `<input type="text" id="d_workCardNo" value="${esc(existing?.workCardNo||'')}">`)}
-      ${inputRow("تاريخ انتهاء بطاقة العمل", `<input type="date" id="d_workCardExpiry" value="${existing?.workCardExpiry||''}">`)}
+      ${inputRow("تاريخ انتهاء بطاقة العمل", `<input type="date" id="d_workCardExpiry" value="${existing?.workCardExpiry||''}">`, true)}
       ${inputRow("ملاحظات", `<input type="text" id="d_notes" value="${esc(existing?.notes||'')}">`, true)}
     </div>`;
   openModal(isEdit ? "تعديل سجل وثائق" : "إضافة سجل وثائق", body, ()=>{
@@ -913,7 +912,6 @@ function openDocumentForm(existing){
       iqamaExpiry: document.getElementById('d_iqamaExpiry').value,
       passportNo: document.getElementById('d_passportNo').value,
       passportExpiry: document.getElementById('d_passportExpiry').value,
-      workCardNo: document.getElementById('d_workCardNo').value,
       workCardExpiry: document.getElementById('d_workCardExpiry').value,
       notes: document.getElementById('d_notes').value,
     };

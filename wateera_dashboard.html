@@ -158,6 +158,7 @@ const state = {
   passportScansApplied: false,
   iqamaScansApplied: false,
   sultanAdded: false,
+  abdallatifAdded: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -329,6 +330,7 @@ async function loadDataFromDrive(){
       state.passportScansApplied = !!data.passportScansApplied;
       state.iqamaScansApplied = !!data.iqamaScansApplied;
       state.sultanAdded = !!data.sultanAdded;
+      state.abdallatifAdded = !!data.abdallatifAdded;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -369,6 +371,11 @@ async function loadDataFromDrive(){
   if(!state.sultanAdded){
     ensureSultanAhmed();
     state.sultanAdded = true;
+    needsSave = true;
+  }
+  if(!state.abdallatifAdded){
+    ensureAbdallatif();
+    state.abdallatifAdded = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -517,10 +524,26 @@ function ensureSultanAhmed(){
   return true;
 }
 
+/* إضافة خبير جديد (عبداللطيف ساتي عبداللطيف عبدالرحمن) من جواز وهوية مقيم مرفوعين — يعمل مرة واحدة بفضل علامة abdallatifAdded */
+function ensureAbdallatif(){
+  const employeeId = "u982467";
+  if(state.documents.some(d=>d.employeeId===employeeId)) return false;
+  state.documents.push({
+    id: nextId('d'), employeeId, team: "t0",
+    name: "عبداللطيف ساتي عبداللطيف عبدالرحمن", nameEn: "ABDALLATIF SATTI ABDALLATIF ABDALRHMAN",
+    jobTitle: "أخصائي إدارة مشاريع", nationality: "كندا", city: "",
+    birthDate: "1988-09-11", birthPlace: "الخرطوم، السودان",
+    iqamaNo: "2508305012", iqamaExpiry: "2027-02-03",
+    passportNo: "AN465804", passportExpiry: "2032-03-22",
+    workCardExpiry: "", notes: "جهة العمل: منطقة نيوم لريادة الأعمال — مركز نيلوفر الرائد لحاضنات ومسرعات الأعمال",
+  });
+  return true;
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {

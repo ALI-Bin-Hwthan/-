@@ -156,6 +156,8 @@ const state = {
   trialCleared: false,
   expertsImported: false,
   passportScansApplied: false,
+  iqamaScansApplied: false,
+  sultanAdded: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -325,6 +327,8 @@ async function loadDataFromDrive(){
       state.trialCleared = !!data.trialCleared;
       state.expertsImported = !!data.expertsImported;
       state.passportScansApplied = !!data.passportScansApplied;
+      state.iqamaScansApplied = !!data.iqamaScansApplied;
+      state.sultanAdded = !!data.sultanAdded;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -355,6 +359,16 @@ async function loadDataFromDrive(){
   if(!state.passportScansApplied){
     applyPassportScanUpdates();
     state.passportScansApplied = true;
+    needsSave = true;
+  }
+  if(!state.iqamaScansApplied){
+    applyIqamaScanUpdates();
+    state.iqamaScansApplied = true;
+    needsSave = true;
+  }
+  if(!state.sultanAdded){
+    ensureSultanAhmed();
+    state.sultanAdded = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -463,10 +477,50 @@ function applyPassportScanUpdates(){
   return changed;
 }
 
+/* تحديث تواريخ انتهاء الإقامة (وبعض أرقام الإقامة) المستخرجة من صور هوية مقيم — يعمل مرة واحدة بفضل علامة iqamaScansApplied */
+function applyIqamaScanUpdates(){
+  const updates = [
+    { employeeId:"u800527", iqamaNo:"2611650892", iqamaExpiry:"2027-10-03" }, // زيد لاتاري
+    { employeeId:"u800520", iqamaNo:"2114379981", iqamaExpiry:"2027-10-08" }, // عبدالرحمن مجدي
+    { employeeId:"u800524", iqamaNo:"2574484099", iqamaExpiry:"2027-07-08" }, // تشن يو لي
+    { employeeId:"u800528", iqamaNo:"2612084324", iqamaExpiry:"2027-10-10" }, // أوغ بريدوم (تحقق: يختلف بمنزلة عن السجل الأصلي)
+    { employeeId:"u800512", iqamaNo:"2498417977", iqamaExpiry:"2027-04-25" }, // غلام مصطفى
+    { employeeId:"u800516", iqamaNo:"2565027402", iqamaExpiry:"2027-03-11" }, // نيل مارتن رينولدز
+    { employeeId:"u800510", iqamaNo:"2492609736", iqamaExpiry:"2027-01-14" }, // يونغ ووك يو
+    { employeeId:"u800501", iqamaNo:"2416295976", iqamaExpiry:"2027-06-15" }, // بيونغ سونغ بارك
+  ];
+  let changed = false;
+  updates.forEach(u=>{
+    const d = state.documents.find(x=>x.employeeId===u.employeeId);
+    if(d && (d.iqamaNo !== u.iqamaNo || d.iqamaExpiry !== u.iqamaExpiry)){
+      d.iqamaNo = u.iqamaNo;
+      d.iqamaExpiry = u.iqamaExpiry;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+/* إضافة خبير جديد (سلطان أحمد) من جواز وتقرير مقيم مرفوعين — يعمل مرة واحدة بفضل علامة sultanAdded */
+function ensureSultanAhmed(){
+  const employeeId = "u800530";
+  if(state.documents.some(d=>d.employeeId===employeeId)) return false;
+  state.documents.push({
+    id: nextId('d'), employeeId, team: "t0",
+    name: "سلطان أحمد محمد أنور أحمد", nameEn: "SULTAN AHMED MOHAMMAD ANWAR AHMED",
+    jobTitle: "مهندس مدني", nationality: "الهند", city: "",
+    birthDate: "1986-08-31", birthPlace: "حيدر آباد، تلانجانا، الهند",
+    iqamaNo: "2558636342", iqamaExpiry: "2026-12-26",
+    passportNo: "W5022718", passportExpiry: "2032-09-21",
+    workCardExpiry: "", notes: "جهة العمل: مركز نيلوفر الرائد لحاضنات ومسرعات الأعمال",
+  });
+  return true;
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {

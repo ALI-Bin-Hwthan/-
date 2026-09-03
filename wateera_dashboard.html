@@ -159,6 +159,7 @@ const state = {
   iqamaScansApplied: false,
   sultanAdded: false,
   abdallatifAdded: false,
+  iqamaScansApplied2: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -331,6 +332,7 @@ async function loadDataFromDrive(){
       state.iqamaScansApplied = !!data.iqamaScansApplied;
       state.sultanAdded = !!data.sultanAdded;
       state.abdallatifAdded = !!data.abdallatifAdded;
+      state.iqamaScansApplied2 = !!data.iqamaScansApplied2;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -376,6 +378,11 @@ async function loadDataFromDrive(){
   if(!state.abdallatifAdded){
     ensureAbdallatif();
     state.abdallatifAdded = true;
+    needsSave = true;
+  }
+  if(!state.iqamaScansApplied2){
+    applyIqamaScanUpdates2();
+    state.iqamaScansApplied2 = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -540,10 +547,27 @@ function ensureAbdallatif(){
   return true;
 }
 
+/* تحديث إضافي لتاريخ انتهاء إقامة سيونغ وون ايم — يعمل مرة واحدة بفضل علامة iqamaScansApplied2 */
+function applyIqamaScanUpdates2(){
+  const updates = [
+    { employeeId:"u800502", iqamaNo:"2459813198", iqamaExpiry:"2027-10-21" }, // سيونغ وون ايم
+  ];
+  let changed = false;
+  updates.forEach(u=>{
+    const d = state.documents.find(x=>x.employeeId===u.employeeId);
+    if(d && (d.iqamaNo !== u.iqamaNo || d.iqamaExpiry !== u.iqamaExpiry)){
+      d.iqamaNo = u.iqamaNo;
+      d.iqamaExpiry = u.iqamaExpiry;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2 });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {
@@ -962,25 +986,54 @@ function renderDocuments(){
     d.name.includes(state.search) || (d.employeeId||'').includes(state.search) ||
     (d.iqamaNo||'').includes(state.search) || (d.passportNo||'').includes(state.search)
   );
-  const rows = items.map(d=>{
+
+  const field = (label, value) => `
+    <div>
+      <div style="font-size:10px;color:var(--muted);font-weight:600;">${label}</div>
+      <div style="font-size:12.5px;font-weight:600;margin-top:1px;">${value || '<span style="color:var(--muted);font-weight:400;">—</span>'}</div>
+    </div>`;
+
+  const cards = items.map(d=>{
     const worst = worstDocStatus(d.iqamaSt, d.passportSt, d.cardSt);
-    const rowTint = worst==='expired' ? 'background:#FCEBEA;' : (worst==='soon' ? 'background:#FCF3E4;' : '');
-    return `<tr style="${rowTint}">
-      <td style="white-space:nowrap;color:var(--muted);">${esc(d.employeeId||'—')}</td>
-      <td style="font-weight:600;white-space:nowrap;">${esc(d.name)}${d.nameEn?`<div style="color:var(--muted);font-size:11px;font-weight:400;">${esc(d.nameEn)}</div>`:''}</td>
-      <td style="white-space:nowrap;color:var(--muted);">${esc(d.jobTitle||'—')}</td>
-      <td><span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(d.team)}"></span>${esc(teamName(d.team))}</span></td>
-      <td style="white-space:nowrap;color:var(--muted);">${esc(d.nationality||'—')}</td>
-      <td style="white-space:nowrap;color:var(--muted);">${esc(d.city||'—')}</td>
-      <td style="white-space:nowrap;color:var(--muted);">${esc(d.birthPlace||'—')}</td>
-      <td style="white-space:nowrap;color:var(--muted);">${esc(d.iqamaNo||'—')}</td>
-      <td style="white-space:nowrap;">${docDateCell(d.iqamaExpiry, d.iqamaFileUrl)}</td>
-      <td style="white-space:nowrap;color:var(--muted);">${esc(d.passportNo||'—')}</td>
-      <td style="white-space:nowrap;">${docDateCell(d.passportExpiry, d.passportFileUrl)}</td>
-      <td style="white-space:nowrap;">${docDateCell(d.workCardExpiry, d.workCardFileUrl)}</td>
-      <td><button class="linkbtn editDocumentBtn" data-id="${d.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button></td>
-    </tr>`;
-  }).join("") || `<tr><td colspan="13" style="padding:30px;text-align:center;color:var(--muted);">لا توجد سجلات مطابقة</td></tr>`;
+    const alertBadge = worst==='expired'
+      ? `<span class="chip" style="background:#FCEBEA;color:var(--red);">${icon('alert',11)} يوجد وثائق منتهية</span>`
+      : (worst==='soon' ? `<span class="chip" style="background:#FCF3E4;color:var(--amber);">${icon('alert',11)} قريبة الانتهاء</span>` : '');
+    return `
+    <div class="card" style="border-top:4px solid ${teamColor(d.team)};padding:16px 18px;font-size:12.5px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
+        <div>
+          <div class="disp" style="font-weight:800;font-size:15px;">${esc(d.name)}</div>
+          ${d.nameEn?`<div style="color:var(--muted);font-size:11px;margin-top:1px;">${esc(d.nameEn)}</div>`:''}
+          <div style="margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(d.team)}"></span>${esc(teamName(d.team))}</span>
+            ${d.jobTitle?`<span style="font-size:11.5px;color:var(--muted);">· ${esc(d.jobTitle)}</span>`:''}
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          ${alertBadge}
+          <button class="linkbtn editDocumentBtn" data-id="${d.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px 14px;padding:10px 0;border-top:1px dashed var(--line);">
+        ${field("معرف الموظف", esc(d.employeeId))}
+        ${field("الجنسية", esc(d.nationality))}
+        ${field("المدينة", esc(d.city))}
+        ${field("تاريخ الميلاد", esc(d.birthDate))}
+        ${field("مكان الميلاد", esc(d.birthPlace))}
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;padding:10px 0;border-top:1px dashed var(--line);">
+        ${field("رقم الإقامة", esc(d.iqamaNo))}
+        <div><div style="font-size:10px;color:var(--muted);font-weight:600;">انتهاء الإقامة</div><div style="margin-top:1px;">${docDateCell(d.iqamaExpiry, d.iqamaFileUrl)}</div></div>
+        ${field("رقم الجواز", esc(d.passportNo))}
+        <div><div style="font-size:10px;color:var(--muted);font-weight:600;">انتهاء الجواز</div><div style="margin-top:1px;">${docDateCell(d.passportExpiry, d.passportFileUrl)}</div></div>
+        <div></div>
+        <div><div style="font-size:10px;color:var(--muted);font-weight:600;">انتهاء بطاقة العمل</div><div style="margin-top:1px;">${docDateCell(d.workCardExpiry, d.workCardFileUrl)}</div></div>
+      </div>
+      ${d.notes ? `<div style="border-top:1px dashed var(--line);padding-top:8px;margin-top:2px;font-size:11.5px;color:var(--muted);">${esc(d.notes)}</div>` : ''}
+    </div>`;
+  }).join("") || `<div class="card" style="padding:30px;text-align:center;color:var(--muted);">لا توجد سجلات مطابقة</div>`;
 
   return `
     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;">
@@ -990,11 +1043,8 @@ function renderDocuments(){
       ${docStatCard("سارية", stats.ok, "var(--green)", "check")}
     </div>
     ${toolbar("إضافة سجل","addDocumentBtn")}
-    <div class="card" style="overflow:hidden;">
-      <div class="scroller" style="overflow-x:auto;">
-        <table><thead><tr>${["معرف الموظف","الاسم","المسمى الوظيفي","الإدارة","الجنسية","المدينة","مكان الميلاد","رقم الإقامة","انتهاء الإقامة","رقم الجواز","انتهاء الجواز","انتهاء بطاقة العمل",""].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
-        <tbody>${rows}</tbody></table>
-      </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;">
+      ${cards}
     </div>`;
 }
 

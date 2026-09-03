@@ -176,6 +176,7 @@ const state = {
   nikolayAdded: false,
   masterListApplied: false,
   conflictsResolved: false,
+  gradesApplied: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -364,6 +365,7 @@ async function loadDataFromDrive(){
       state.nikolayAdded = !!data.nikolayAdded;
       state.masterListApplied = !!data.masterListApplied;
       state.conflictsResolved = !!data.conflictsResolved;
+      state.gradesApplied = !!data.gradesApplied;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -489,6 +491,11 @@ async function loadDataFromDrive(){
   if(!state.conflictsResolved){
     resolveConflicts();
     state.conflictsResolved = true;
+    needsSave = true;
+  }
+  if(!state.gradesApplied){
+    applyGrades();
+    state.gradesApplied = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -1025,10 +1032,37 @@ function resolveConflicts(){
   return changed;
 }
 
+/* تطبيق درجات الخبراء (GA-GF) بناءً على مطابقة الراتب الأساسي بجدول الدرجات — يعمل مرة واحدة بفضل علامة gradesApplied */
+function applyGrades(){
+  const grades = {
+    u800501: "GA", // بيونغ سونغ بارك — 78,125
+    u800502: "GA", // سيونغ وون ايم — 78,125
+    u800527: "GB", // زيد لاتاري — 76,000
+    u800513: "GE", // شنغ لي — 29,815
+    u800512: "GC", // غلام مصطفى — 51,500
+    u800510: "GB", // يونغ ووك يو — 72,890
+    u800524: "GC", // تشن يو لي — 47,037
+    u800521: "GB", // حسين باصي — 67,200
+    u800516: "GA", // نيل مارتن رينولدز — 110,000 (بدل سكنه 27,500 أعلى من المعتاد لهذي الدرجة، تحقق)
+    u800528: "GC", // أوغ بريدوم — 44,445
+    u800514: "GC", // أسرار — 43,889
+    u800520: "GF", // عبدالرحمن مجدي — 17,845
+  };
+  let changed = false;
+  Object.entries(grades).forEach(([employeeId, grade])=>{
+    const d = state.documents.find(x=>x.employeeId===employeeId);
+    if(d && d.grade !== grade){
+      d.grade = grade;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {
@@ -1418,6 +1452,7 @@ const DOC_FIELD_MAP = {
   "الاسم": "name",
   "الاسم بالإنجليزي": "nameEn",
   "المسمى الوظيفي": "jobTitle",
+  "الدرجة": "grade",
   "الجنسية": "nationality",
   "المدينة": "city",
   "تاريخ الميلاد": "birthDate",
@@ -1557,6 +1592,7 @@ function renderDocuments(){
           <div style="margin-top:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
             <span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(d.team)}"></span>${esc(teamName(d.team))}</span>
             ${d.jobTitle?`<span style="font-size:11.5px;color:var(--muted);">· ${esc(d.jobTitle)}</span>`:''}
+            ${d.grade?`<span class="chip" style="background:#EEF2FA;color:var(--navy2);font-size:10.5px;padding:2px 8px;">${esc(d.grade)}</span>`:''}
           </div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
@@ -1617,6 +1653,7 @@ function openDocumentForm(existing){
       ${inputRow("الاسم", `<input type="text" id="d_name" value="${esc(existing?.name||'')}">`, true)}
       ${inputRow("الاسم بالإنجليزي", `<input type="text" id="d_nameEn" value="${esc(existing?.nameEn||'')}">`, true)}
       ${inputRow("المسمى الوظيفي", `<input type="text" id="d_jobTitle" value="${esc(existing?.jobTitle||'')}">`)}
+      ${inputRow("الدرجة", `<select id="d_grade"><option value="">—</option>${["GA","GB","GC","GD","GE","GF"].map(g=>`<option value="${g}" ${existing?.grade===g?'selected':''}>${g}</option>`).join("")}</select>`)}
       ${inputRow("الجنسية", `<input type="text" id="d_nationality" value="${esc(existing?.nationality||'')}">`)}
       ${inputRow("المدينة", `<input type="text" id="d_city" value="${esc(existing?.city||'')}">`)}
       ${inputRow("تاريخ الميلاد", `<input type="date" id="d_birthDate" value="${existing?.birthDate||''}">`)}
@@ -1644,6 +1681,7 @@ function openDocumentForm(existing){
       name,
       nameEn: document.getElementById('d_nameEn').value,
       jobTitle: document.getElementById('d_jobTitle').value,
+      grade: document.getElementById('d_grade').value,
       team: document.getElementById('d_team').value,
       nationality: document.getElementById('d_nationality').value,
       city: document.getElementById('d_city').value,

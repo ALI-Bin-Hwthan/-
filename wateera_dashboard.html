@@ -163,6 +163,7 @@ const state = {
   mubashirAdded: false,
   mustakeemAdded: false,
   passportScansApplied3: false,
+  passportScansApplied4: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -339,6 +340,7 @@ async function loadDataFromDrive(){
       state.mubashirAdded = !!data.mubashirAdded;
       state.mustakeemAdded = !!data.mustakeemAdded;
       state.passportScansApplied3 = !!data.passportScansApplied3;
+      state.passportScansApplied4 = !!data.passportScansApplied4;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -404,6 +406,11 @@ async function loadDataFromDrive(){
   if(!state.passportScansApplied3){
     applyPassportScanUpdates3();
     state.passportScansApplied3 = true;
+    needsSave = true;
+  }
+  if(!state.passportScansApplied4){
+    applyPassportScanUpdates4();
+    state.passportScansApplied4 = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -634,10 +641,27 @@ function applyPassportScanUpdates3(){
   return changed;
 }
 
+/* تحديث بيانات جواز أوغ بريدوم — يعمل مرة واحدة بفضل علامة passportScansApplied4 */
+function applyPassportScanUpdates4(){
+  const updates = [
+    { employeeId:"u800528", passportNo:"21AA76860", passportExpiry:"2031-03-01" }, // أوغ بريدوم
+  ];
+  let changed = false;
+  updates.forEach(u=>{
+    const d = state.documents.find(x=>x.employeeId===u.employeeId);
+    if(d && (d.passportNo !== u.passportNo || d.passportExpiry !== u.passportExpiry)){
+      d.passportNo = u.passportNo;
+      d.passportExpiry = u.passportExpiry;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3 });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4 });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {

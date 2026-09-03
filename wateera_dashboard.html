@@ -173,6 +173,7 @@ const state = {
   friedrichAdded: false,
   nourBirthApplied: false,
   nikolayAdded: false,
+  masterListApplied: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -359,6 +360,7 @@ async function loadDataFromDrive(){
       state.friedrichAdded = !!data.friedrichAdded;
       state.nourBirthApplied = !!data.nourBirthApplied;
       state.nikolayAdded = !!data.nikolayAdded;
+      state.masterListApplied = !!data.masterListApplied;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -474,6 +476,11 @@ async function loadDataFromDrive(){
   if(!state.nikolayAdded){
     ensureNikolay();
     state.nikolayAdded = true;
+    needsSave = true;
+  }
+  if(!state.masterListApplied){
+    applyMasterList();
+    state.masterListApplied = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -930,10 +937,62 @@ function ensureNikolay(){
   return true;
 }
 
+/* مطابقة شاملة مع كشف "الخبراء الأخير" الرسمي — يصحح الأرقام والتواريخ ويضيف خبيرين جديدين — يعمل مرة واحدة بفضل علامة masterListApplied */
+function applyMasterList(){
+  let changed = false;
+  const updates = [
+    { employeeId:"u800513", iqamaNo:"2500081803", passportNo:"EL0518333", nationality:"الصين", joiningDate:"2019-04-01" },
+    { employeeId:"u800520", iqamaNo:"2114379981", passportNo:"A31350489", nationality:"مصر", joiningDate:"2023-02-01" },
+    { employeeId:"u800512", iqamaNo:"2498417977", passportNo:"RA9364651", nationality:"أستراليا", joiningDate:"2021-03-31" },
+    { employeeId:"u800528", iqamaNo:"2612084224", passportNo:"21AA76860", nationality:"فرنسا", joiningDate:"2025-08-04" },
+    { employeeId:"u800516", iqamaNo:"2565027402", passportNo:"310318029", nationality:"المملكة المتحدة", joiningDate:"2024-01-14" },
+    { employeeId:"u800527", iqamaNo:"2611650892", passportNo:"546115906", nationality:"الولايات المتحدة", joiningDate:"2025-07-28" },
+    { employeeId:"u800501", iqamaNo:"2416295976", passportNo:"M496L2372", nationality:"كوريا الجنوبية", joiningDate:"2018-10-23" },
+    { employeeId:"u800502", iqamaNo:"2459813198", passportNo:"M956N7229", nationality:"كوريا الجنوبية", joiningDate:"2018-10-29",
+      notes:"رقم الجواز حسب كشف الموارد البشرية الرسمي M956N7229 — يختلف عن قراءة صورة سابقة (M63143424)، اعتمدنا الكشف الرسمي" },
+    { employeeId:"u800510", iqamaNo:"2492609736", passportNo:"M090G5452", nationality:"كوريا الجنوبية", joiningDate:"2020-12-21" },
+    { employeeId:"u800524", iqamaNo:"2574484099", passportNo:"EK1158125", nationality:"الصين", joiningDate:"2024-05-12" },
+    { employeeId:"u800525", iqamaNo:"1069891719", nationality:"السعودية", joiningDate:"2024-11-17" },
+    { employeeId:"u800521", iqamaNo:"1009605021", nationality:"السعودية", joiningDate:"2023-08-20", name:"حسين محمد مهدي باصي", nameEn:"HUSSAIN MOHAMMAD BASSI" },
+    { employeeId:"u800514", iqamaNo:"2521730784", passportNo:"553913712", nationality:"الولايات المتحدة", joiningDate:"2022-06-01", resignationDate:"2026-07-31", name:"ناش اسرار", nameEn:"NAUSHA ASRAR" },
+    { employeeId:"u800505", iqamaNo:"2464568209", passportNo:"N3613228", nationality:"أستراليا", joiningDate:"2022-04-16", resignationDate:"2026-02-28" },
+    { employeeId:"u800506", iqamaNo:"2478215219", passportNo:"PA8954985", nationality:"أستراليا", joiningDate:"2019-10-27", resignationDate:"2026-06-15",
+      notes:"تاريخ الاستقالة حسب كشف الموارد البشرية الرسمي 2026-06-15 — يختلف عن نموذج إخلاء طرف موقّع سابق أظهر 2023-07-25، يُرجى التأكيد" },
+    { employeeId:"u800508", iqamaNo:"2484985615", passportNo:"M99865830", nationality:"كوريا الجنوبية", joiningDate:"2019-05-22", resignationDate:"2024-06-29" },
+    { employeeId:"u800503", iqamaNo:"2460389410", passportNo:"561734806", nationality:"الولايات المتحدة", joiningDate:"2022-12-11", resignationDate:"2023-09-30" },
+    { employeeId:"u800504", iqamaNo:"2462539780", passportNo:"548538738", nationality:"الولايات المتحدة", joiningDate:"2019-01-06", resignationDate:"2022-12-17",
+      notes:"تاريخ الاستقالة حسب كشف الموارد البشرية الرسمي 2022-12-17 — راجع خطاب المباشرة السابق الذي لم يُظهر أي استقالة، يُرجى التأكيد" },
+  ];
+  updates.forEach(u=>{
+    const d = state.documents.find(x=>x.employeeId===u.employeeId);
+    if(!d) return;
+    Object.keys(u).forEach(k=>{
+      if(k!=="employeeId" && d[k] !== u[k]){ d[k] = u[k]; changed = true; }
+    });
+  });
+
+  const newExperts = [
+    { employeeId:"u800526", name:"ريان غازي سمان", nameEn:"RAYAAN GHAZI SAMMAN", jobTitle:"خبير", nationality:"السعودية", city:"",
+      birthDate:"", birthPlace:"", joiningDate:"2024-05-11", resignationDate:"2025-01-30",
+      iqamaNo:"1026749711", iqamaExpiry:"", passportNo:"", passportExpiry:"", notes:"من كشف الموارد البشرية الرسمي" },
+    { employeeId:"u800523", name:"ساربر سارب", nameEn:"SARPER SARP", jobTitle:"خبير", nationality:"المملكة المتحدة", city:"",
+      birthDate:"", birthPlace:"", joiningDate:"2024-03-24", resignationDate:"2025-01-12",
+      iqamaNo:"2570606190", iqamaExpiry:"", passportNo:"144986113", passportExpiry:"", notes:"من كشف الموارد البشرية الرسمي" },
+  ];
+  newExperts.forEach(def=>{
+    if(!state.documents.some(d=>d.employeeId===def.employeeId)){
+      state.documents.push({ id: nextId('d'), team:"t0", workCardExpiry:"", ...def });
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {

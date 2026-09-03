@@ -150,6 +150,7 @@ const state = {
   teams: [], tasks: [], corr: [], facilities: [], documents: [],
   tab: "dashboard",
   activeTeam: "all",
+  docsFilter: "all",
   search: "",
   gisReady: false,
   ready: false,
@@ -1561,12 +1562,16 @@ function renderDocuments(){
     expired: withStatus.filter(d => worstDocStatus(d.iqamaSt,d.passportSt,d.cardSt)==='expired').length,
     soon: withStatus.filter(d => worstDocStatus(d.iqamaSt,d.passportSt,d.cardSt)==='soon').length,
     ok: withStatus.filter(d => worstDocStatus(d.iqamaSt,d.passportSt,d.cardSt)==='ok').length,
+    resigned: withStatus.filter(d => !!d.resignationDate).length,
   };
 
-  const items = withStatus.filter(d =>
-    d.name.includes(state.search) || (d.employeeId||'').includes(state.search) ||
-    (d.iqamaNo||'').includes(state.search) || (d.passportNo||'').includes(state.search)
-  );
+  const docsFilter = state.docsFilter || 'all';
+  const items = withStatus
+    .filter(d => docsFilter === 'resigned' ? !!d.resignationDate : true)
+    .filter(d =>
+      d.name.includes(state.search) || (d.employeeId||'').includes(state.search) ||
+      (d.iqamaNo||'').includes(state.search) || (d.passportNo||'').includes(state.search)
+    );
 
   const field = (label, value) => `
     <div>
@@ -1599,6 +1604,7 @@ function renderDocuments(){
           ${statusBadge}
           ${alertBadge}
           <button class="linkbtn editDocumentBtn" data-id="${d.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button>
+          <button class="linkbtn downloadDocumentBtn" data-id="${d.id}" style="color:var(--teal);">${icon('report',11)} تنزيل ملف الخبير</button>
         </div>
       </div>
 
@@ -1630,7 +1636,9 @@ function renderDocuments(){
       ${docStatCard("منتهية", stats.expired, "var(--red)", "alert")}
       ${docStatCard("قريبة الانتهاء (٣٠ يوم)", stats.soon, "var(--amber)", "alert")}
       ${docStatCard("سارية", stats.ok, "var(--green)", "check")}
+      <div id="resignedFilterCard" style="cursor:pointer;">${docStatCard("مستقيلون", stats.resigned, "var(--muted)", "pause")}</div>
     </div>
+    ${docsFilter==='resigned' ? `<div style="margin:-10px 0 16px;"><span id="clearDocsFilter" class="chip" style="background:#EFEFEF;color:var(--ink);cursor:pointer;">${icon('x',11)} عرض المستقيلين فقط — اضغط لإلغاء الفلترة</span></div>` : ''}
     ${toolbar("إضافة سجل","addDocumentBtn")}
     <div style="display:flex;justify-content:flex-end;gap:8px;margin:-8px 0 16px;">
       <button id="importDocsBtn" style="display:flex;align-items:center;gap:6px;background:#fff;color:var(--teal);border:1px solid var(--line);padding:8px 14px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('report',13)} استيراد من إكسل</button>
@@ -1854,6 +1862,55 @@ function buildReportHTML(){
 
       <div class="rpt-footer">تم إنشاء هذا التقرير تلقائيًا من لوحة متابعة معهد وتيرا — ${genDate}</div>
     </div>`;
+}
+
+function buildExpertFileHTML(d){
+  const now = new Date();
+  const genDate = now.toLocaleDateString('ar-SA', { year:'numeric', month:'long', day:'numeric' });
+  const row = (label, value) => `
+    <tr><td style="width:35%;font-weight:700;color:var(--navy2);background:#FAFBFA;">${label}</td><td>${value || '—'}</td></tr>`;
+  const dateRow = (label, dateStr, fileUrl) => {
+    if(!dateStr) return row(label, '—');
+    const st = docDateStatus(dateStr);
+    const s = DOC_STATUS[st];
+    const dleft = daysFrom(dateStr);
+    const sub = dleft > 0 ? `منتهية منذ ${dleft} يوم` : `متبقي ${-dleft} يوم`;
+    return row(label, `${dateStr} <span style="color:${s.color};font-weight:700;">(${sub})</span>${fileUrl ? ` — <a href="${fileUrl}" target="_blank">عرض الملف المرفق</a>` : ''}`);
+  };
+  return `
+    <div class="rpt-wrap">
+      <div class="rpt-header">
+        <div class="rpt-disp" style="font-size:19px;font-weight:800;">معهد وتيرا — الإدارة التنفيذية</div>
+        <div style="font-size:12.5px;color:#B9C2D0;margin-top:4px;">ملف بيانات الخبير</div>
+        <div style="font-size:11px;color:#B9C2D0;margin-top:8px;">تاريخ الإصدار: ${genDate}</div>
+      </div>
+      <div class="rpt-section-title">${esc(d.name)} ${d.nameEn?`<span style="color:var(--muted);font-weight:400;font-size:12px;">— ${esc(d.nameEn)}</span>`:''}</div>
+      <table>
+        ${row("معرف الموظف", esc(d.employeeId))}
+        ${row("الإدارة", esc(teamName(d.team)))}
+        ${row("المسمى الوظيفي", esc(d.jobTitle))}
+        ${row("الدرجة", esc(d.grade))}
+        ${row("الجنسية", esc(d.nationality))}
+        ${row("المدينة", esc(d.city))}
+        ${row("تاريخ الميلاد", esc(d.birthDate))}
+        ${row("مكان الميلاد", esc(d.birthPlace))}
+        ${row("تاريخ المباشرة", esc(d.joiningDate))}
+        ${d.resignationDate ? row("تاريخ الاستقالة", esc(d.resignationDate)) : ''}
+        ${row("رقم الإقامة", esc(d.iqamaNo))}
+        ${dateRow("تاريخ انتهاء الإقامة", d.iqamaExpiry, d.iqamaFileUrl)}
+        ${row("رقم الجواز", esc(d.passportNo))}
+        ${dateRow("تاريخ انتهاء الجواز", d.passportExpiry, d.passportFileUrl)}
+        ${dateRow("تاريخ انتهاء بطاقة العمل", d.workCardExpiry, d.workCardFileUrl)}
+        ${d.notes ? row("ملاحظات", esc(d.notes)) : ''}
+      </table>
+    </div>`;
+}
+
+function downloadExpertFile(d){
+  const host = document.getElementById('wt-print-report');
+  if(!host) return;
+  host.innerHTML = buildExpertFileHTML(d);
+  window.print();
 }
 
 function printReport(){
@@ -2135,6 +2192,16 @@ function bindEvents(){
   }
   const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
   if(downloadTemplateBtn) downloadTemplateBtn.addEventListener('click', downloadDocumentsTemplate);
+  const resignedFilterCard = document.getElementById('resignedFilterCard');
+  if(resignedFilterCard) resignedFilterCard.addEventListener('click', ()=>{ state.docsFilter = 'resigned'; render(); });
+  const clearDocsFilter = document.getElementById('clearDocsFilter');
+  if(clearDocsFilter) clearDocsFilter.addEventListener('click', ()=>{ state.docsFilter = 'all'; render(); });
+  root.querySelectorAll('.downloadDocumentBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const d = state.documents.find(x=>x.id===btn.getAttribute('data-id'));
+      if(d) downloadExpertFile(d);
+    });
+  });
 
   const reportBtn = document.getElementById('reportBtn');
   if(reportBtn) reportBtn.addEventListener('click', printReport);

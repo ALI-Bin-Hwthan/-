@@ -161,6 +161,7 @@ const state = {
   abdallatifAdded: false,
   iqamaScansApplied2: false,
   mubashirAdded: false,
+  mustakeemAdded: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -335,6 +336,7 @@ async function loadDataFromDrive(){
       state.abdallatifAdded = !!data.abdallatifAdded;
       state.iqamaScansApplied2 = !!data.iqamaScansApplied2;
       state.mubashirAdded = !!data.mubashirAdded;
+      state.mustakeemAdded = !!data.mustakeemAdded;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -390,6 +392,11 @@ async function loadDataFromDrive(){
   if(!state.mubashirAdded){
     ensureMubashir();
     state.mubashirAdded = true;
+    needsSave = true;
+  }
+  if(!state.mustakeemAdded){
+    ensureMustakeem();
+    state.mustakeemAdded = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -587,10 +594,26 @@ function ensureMubashir(){
   return true;
 }
 
+/* إضافة خبير جديد (مستقيم نذير أحمد) من جواز وهوية مقيم مرفوعين — يعمل مرة واحدة بفضل علامة mustakeemAdded */
+function ensureMustakeem(){
+  const employeeId = "u982849";
+  if(state.documents.some(d=>d.employeeId===employeeId)) return false;
+  state.documents.push({
+    id: nextId('d'), employeeId, team: "t0",
+    name: "مستقيم نذير أحمد", nameEn: "MUSTAKEEM NAZEER AHMAD",
+    jobTitle: "مدير دراسات أبحاث", nationality: "الهند", city: "",
+    birthDate: "1989-01-01", birthPlace: "دلهي، الهند",
+    iqamaNo: "2572173280", iqamaExpiry: "2027-06-20",
+    passportNo: "Z2889684", passportExpiry: "2030-11-04",
+    workCardExpiry: "", notes: "جهة العمل: مركز نيلوفر الرائد لحاضنات ومسرعات الأعمال",
+  });
+  return true;
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {

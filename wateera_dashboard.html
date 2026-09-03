@@ -168,6 +168,7 @@ const state = {
   amrAdded: false,
   imranAdded: false,
   joiningDatesApplied: false,
+  hrBatch2Applied: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -349,6 +350,7 @@ async function loadDataFromDrive(){
       state.amrAdded = !!data.amrAdded;
       state.imranAdded = !!data.imranAdded;
       state.joiningDatesApplied = !!data.joiningDatesApplied;
+      state.hrBatch2Applied = !!data.hrBatch2Applied;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -439,6 +441,11 @@ async function loadDataFromDrive(){
   if(!state.joiningDatesApplied){
     applyJoiningDates();
     state.joiningDatesApplied = true;
+    needsSave = true;
+  }
+  if(!state.hrBatch2Applied){
+    applyHRBatch2();
+    state.hrBatch2Applied = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -792,10 +799,59 @@ function applyJoiningDates(){
   return changed;
 }
 
+/* دفعة موارد بشرية ثانية: استقالة أسرار، اسم حسين باسي الكامل، وإضافة نور البشر وكريستوفر فيلوز وكريستوفر إيست وسانغ هو لي — يعمل مرة واحدة بفضل علامة hrBatch2Applied */
+function applyHRBatch2(){
+  let changed = false;
+
+  const asrar = state.documents.find(x=>x.employeeId==="u800514");
+  if(asrar){
+    if(asrar.resignationDate !== "2026-07-31"){ asrar.resignationDate = "2026-07-31"; changed = true; }
+    if(asrar.nationality !== "الولايات المتحدة"){ asrar.nationality = "الولايات المتحدة"; changed = true; }
+    if(asrar.notes !== "آخر يوم عمل 2026-07-30 — عدم تجديد/استقالة ذاتية بالنظام"){ asrar.notes = "آخر يوم عمل 2026-07-30 — عدم تجديد/استقالة ذاتية بالنظام"; changed = true; }
+  }
+
+  const hussain = state.documents.find(x=>x.employeeId==="u800521");
+  if(hussain && hussain.name !== "حسين بن محمد باصي"){
+    hussain.name = "حسين بن محمد باصي";
+    hussain.nameEn = "HUSSAIN MOHAMMED BASSI";
+    changed = true;
+  }
+
+  const newExperts = [
+    { employeeId:"u800525", name:"نور بنت حاتم البشر", nameEn:"NOOR HATEM AL-BISHR", jobTitle:"خبير", nationality:"السعودية", city:"الرياض",
+      birthDate:"", birthPlace:"ينبع، السعودية", joiningDate:"2024-11-17", resignationDate:"",
+      iqamaNo:"1069891719", iqamaExpiry:"", passportNo:"", passportExpiry:"",
+      notes:"رقم الهوية الوطنية (سعودية الجنسية) — تاريخ الميلاد التقريبي بالهجري: 1410/01/18" },
+    { employeeId:"u800505", name:"كريستوفر فيلوز", nameEn:"CHRISTOPHER FELLOWS", jobTitle:"خبير أول", nationality:"أستراليا", city:"",
+      birthDate:"", birthPlace:"", joiningDate:"", resignationDate:"2026-02-28",
+      iqamaNo:"2464568209", iqamaExpiry:"", passportNo:"", passportExpiry:"",
+      notes:"عدم تجديد العقد — آخر يوم عمل 2026-02-28" },
+    { employeeId:"", name:"كريستوفر بول إيست", nameEn:"CHRISTOPHER PAUL EAST", jobTitle:"باحث علوم كيميائية / قائد المختبرات التحليلية", nationality:"أستراليا", city:"الجبيل",
+      birthDate:"1984-09-05", birthPlace:"", joiningDate:"2019-10-27", resignationDate:"2023-07-25",
+      iqamaNo:"2478215219", iqamaExpiry:"", passportNo:"", passportExpiry:"",
+      notes:"معهد أبحاث تقنيات التحلية (DTRI) — بانتظار الرقم الوظيفي (u-number)" },
+    { employeeId:"u800508", name:"سانغ هو لي", nameEn:"SANG HO LEE", jobTitle:"خبير مياه", nationality:"كوريا الجنوبية", city:"",
+      birthDate:"1969-06-07", birthPlace:"", joiningDate:"2019-05-22", resignationDate:"2024-06-29",
+      iqamaNo:"2484985615", iqamaExpiry:"", passportNo:"M99865830", passportExpiry:"2029-01-31",
+      notes:"عقد دوام جزئي (خبير استشاري) — بروفيسور بجامعة Kookmin، كوريا الجنوبية" },
+  ];
+  newExperts.forEach(def=>{
+    const exists = def.employeeId
+      ? state.documents.some(d=>d.employeeId===def.employeeId)
+      : state.documents.some(d=>d.name===def.name);
+    if(!exists){
+      state.documents.push({ id: nextId('d'), team:"t0", workCardExpiry:"", ...def });
+      changed = true;
+    }
+  });
+
+  return changed;
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {

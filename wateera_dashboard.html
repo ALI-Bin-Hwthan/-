@@ -167,6 +167,7 @@ const state = {
   passportScansApplied5: false,
   amrAdded: false,
   imranAdded: false,
+  joiningDatesApplied: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -347,6 +348,7 @@ async function loadDataFromDrive(){
       state.passportScansApplied5 = !!data.passportScansApplied5;
       state.amrAdded = !!data.amrAdded;
       state.imranAdded = !!data.imranAdded;
+      state.joiningDatesApplied = !!data.joiningDatesApplied;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -432,6 +434,11 @@ async function loadDataFromDrive(){
   if(!state.imranAdded){
     ensureImran();
     state.imranAdded = true;
+    needsSave = true;
+  }
+  if(!state.joiningDatesApplied){
+    applyJoiningDates();
+    state.joiningDatesApplied = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -728,10 +735,67 @@ function ensureImran(){
   return true;
 }
 
+/* تحديث تواريخ المباشرة لكل الخبراء + إضافة خبيرين جديدين (حسين باسي وأسرار) + تصحيح رقم إقامة أوغ بريدوم — يعمل مرة واحدة بفضل علامة joiningDatesApplied */
+function applyJoiningDates(){
+  const joining = [
+    { employeeId:"u800501", joiningDate:"2018-10-23" }, // بيونغ سونغ بارك
+    { employeeId:"u800502", joiningDate:"2018-10-29" }, // سيونغ وون ايم
+    { employeeId:"u800527", joiningDate:"2025-07-28" }, // زيد لاتاري
+    { employeeId:"u800513", joiningDate:"2019-04-01" }, // شنغ لي
+    { employeeId:"u800512", joiningDate:"2021-03-31" }, // غلام مصطفى
+    { employeeId:"u800510", joiningDate:"2020-12-21" }, // يونغ ووك يو
+    { employeeId:"u800524", joiningDate:"2024-05-12" }, // تشن يو لي
+    { employeeId:"u800516", joiningDate:"2024-01-14" }, // نيل مارتن رينولدز
+    { employeeId:"u800528", joiningDate:"2025-08-04" }, // أوغ بريدوم
+    { employeeId:"u800520", joiningDate:"2023-02-01" }, // عبدالرحمن مجدي
+  ];
+  let changed = false;
+  joining.forEach(u=>{
+    const d = state.documents.find(x=>x.employeeId===u.employeeId);
+    if(d && d.joiningDate !== u.joiningDate){
+      d.joiningDate = u.joiningDate;
+      changed = true;
+    }
+  });
+
+  // تصحيح رقم إقامة أوغ بريدوم للرقم الصحيح المؤكد من كشف الموارد البشرية
+  const hugues = state.documents.find(x=>x.employeeId==="u800528");
+  if(hugues && hugues.iqamaNo !== "2612084224"){
+    hugues.iqamaNo = "2612084224";
+    changed = true;
+  }
+
+  // إضافة خبيرين جديدين ببيانات أساسية من كشف الموارد البشرية (بانتظار مزيد من التفاصيل)
+  if(!state.documents.some(d=>d.employeeId==="u800521")){
+    state.documents.push({
+      id: nextId('d'), employeeId:"u800521", team:"t0",
+      name:"حسين باسي", nameEn:"HUSSAIN BASSI",
+      jobTitle:"خبير أول", nationality:"", city:"",
+      birthDate:"", birthPlace:"", joiningDate:"2023-08-20", resignationDate:"",
+      iqamaNo:"1009605021", iqamaExpiry:"", passportNo:"", passportExpiry:"",
+      workCardExpiry:"", notes:"بيانات أولية من كشف الموارد البشرية — بانتظار صور الإقامة/الجواز",
+    });
+    changed = true;
+  }
+  if(!state.documents.some(d=>d.employeeId==="u800514")){
+    state.documents.push({
+      id: nextId('d'), employeeId:"u800514", team:"t0",
+      name:"أسرار", nameEn:"ASRAR",
+      jobTitle:"خبير متقدم", nationality:"", city:"",
+      birthDate:"", birthPlace:"", joiningDate:"2022-06-01", resignationDate:"",
+      iqamaNo:"2521730784", iqamaExpiry:"", passportNo:"", passportExpiry:"",
+      workCardExpiry:"", notes:"بيانات أولية من كشف الموارد البشرية — بانتظار صور الإقامة/الجواز",
+    });
+    changed = true;
+  }
+
+  return changed;
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {
@@ -1162,8 +1226,12 @@ function renderDocuments(){
     const alertBadge = worst==='expired'
       ? `<span class="chip" style="background:#FCEBEA;color:var(--red);">${icon('alert',11)} يوجد وثائق منتهية</span>`
       : (worst==='soon' ? `<span class="chip" style="background:#FCF3E4;color:var(--amber);">${icon('alert',11)} قريبة الانتهاء</span>` : '');
+    const resigned = !!d.resignationDate;
+    const statusBadge = resigned
+      ? `<span class="chip" style="background:#EFEFEF;color:var(--muted);">${icon('pause',11)} مستقيل</span>`
+      : `<span class="chip" style="background:#EAF3F1;color:var(--green);">${icon('check',11)} نشط</span>`;
     return `
-    <div class="card" style="border-top:4px solid ${teamColor(d.team)};padding:16px 18px;font-size:12.5px;">
+    <div class="card" style="border-top:4px solid ${teamColor(d.team)};padding:16px 18px;font-size:12.5px;${resigned?'opacity:.7;':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
         <div>
           <div class="disp" style="font-weight:800;font-size:15px;">${esc(d.name)}</div>
@@ -1174,6 +1242,7 @@ function renderDocuments(){
           </div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          ${statusBadge}
           ${alertBadge}
           <button class="linkbtn editDocumentBtn" data-id="${d.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button>
         </div>
@@ -1185,6 +1254,8 @@ function renderDocuments(){
         ${field("المدينة", esc(d.city))}
         ${field("تاريخ الميلاد", esc(d.birthDate))}
         ${field("مكان الميلاد", esc(d.birthPlace))}
+        ${field("تاريخ المباشرة", esc(d.joiningDate))}
+        ${resigned ? field("تاريخ الاستقالة", esc(d.resignationDate)) : ''}
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;padding:10px 0;border-top:1px dashed var(--line);">
@@ -1226,6 +1297,8 @@ function openDocumentForm(existing){
       ${inputRow("المدينة", `<input type="text" id="d_city" value="${esc(existing?.city||'')}">`)}
       ${inputRow("تاريخ الميلاد", `<input type="date" id="d_birthDate" value="${existing?.birthDate||''}">`)}
       ${inputRow("مكان الميلاد", `<input type="text" id="d_birthPlace" value="${esc(existing?.birthPlace||'')}">`, true)}
+      ${inputRow("تاريخ المباشرة", `<input type="date" id="d_joiningDate" value="${existing?.joiningDate||''}">`)}
+      ${inputRow("تاريخ الاستقالة (إن وجد)", `<input type="date" id="d_resignationDate" value="${existing?.resignationDate||''}">`)}
       ${inputRow("رقم الإقامة", `<input type="text" id="d_iqamaNo" value="${esc(existing?.iqamaNo||'')}">`)}
       ${inputRow("تاريخ انتهاء الإقامة", `<input type="date" id="d_iqamaExpiry" value="${existing?.iqamaExpiry||''}">`)}
       ${inputRow("رفع صورة/PDF الإقامة", `<input type="file" id="d_iqamaFile" accept=".pdf,image/*">${fileStatus(existing?.iqamaFileUrl,'ملف إقامة')}`, true)}
@@ -1252,6 +1325,8 @@ function openDocumentForm(existing){
       city: document.getElementById('d_city').value,
       birthDate: document.getElementById('d_birthDate').value,
       birthPlace: document.getElementById('d_birthPlace').value,
+      joiningDate: document.getElementById('d_joiningDate').value,
+      resignationDate: document.getElementById('d_resignationDate').value,
       iqamaNo: document.getElementById('d_iqamaNo').value,
       iqamaExpiry: document.getElementById('d_iqamaExpiry').value,
       passportNo: document.getElementById('d_passportNo').value,

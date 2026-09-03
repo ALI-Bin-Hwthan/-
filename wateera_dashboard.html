@@ -164,6 +164,7 @@ const state = {
   mustakeemAdded: false,
   passportScansApplied3: false,
   passportScansApplied4: false,
+  passportScansApplied5: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -341,6 +342,7 @@ async function loadDataFromDrive(){
       state.mustakeemAdded = !!data.mustakeemAdded;
       state.passportScansApplied3 = !!data.passportScansApplied3;
       state.passportScansApplied4 = !!data.passportScansApplied4;
+      state.passportScansApplied5 = !!data.passportScansApplied5;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -411,6 +413,11 @@ async function loadDataFromDrive(){
   if(!state.passportScansApplied4){
     applyPassportScanUpdates4();
     state.passportScansApplied4 = true;
+    needsSave = true;
+  }
+  if(!state.passportScansApplied5){
+    applyPassportScanUpdates5();
+    state.passportScansApplied5 = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -658,10 +665,27 @@ function applyPassportScanUpdates4(){
   return changed;
 }
 
+/* تحديث بيانات جواز غلام مصطفى — يعمل مرة واحدة بفضل علامة passportScansApplied5 */
+function applyPassportScanUpdates5(){
+  const updates = [
+    { employeeId:"u800512", passportNo:"RA9364651", passportExpiry:"2035-12-19" }, // غلام مصطفى
+  ];
+  let changed = false;
+  updates.forEach(u=>{
+    const d = state.documents.find(x=>x.employeeId===u.employeeId);
+    if(d && (d.passportNo !== u.passportNo || d.passportExpiry !== u.passportExpiry)){
+      d.passportNo = u.passportNo;
+      d.passportExpiry = u.passportExpiry;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4 });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5 });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {

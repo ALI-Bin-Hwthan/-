@@ -1,5 +1,6 @@
 <div id="wateera-root" dir="rtl"></div>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap');
   #wateera-root{
@@ -1412,6 +1413,91 @@ function renderTeams(){
   return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">${cards}</div>`;
 }
 
+const DOC_FIELD_MAP = {
+  "معرف الموظف": "employeeId",
+  "الاسم": "name",
+  "الاسم بالإنجليزي": "nameEn",
+  "المسمى الوظيفي": "jobTitle",
+  "الجنسية": "nationality",
+  "المدينة": "city",
+  "تاريخ الميلاد": "birthDate",
+  "مكان الميلاد": "birthPlace",
+  "تاريخ المباشرة": "joiningDate",
+  "تاريخ الاستقالة": "resignationDate",
+  "رقم الإقامة": "iqamaNo",
+  "تاريخ انتهاء الإقامة": "iqamaExpiry",
+  "رقم الجواز": "passportNo",
+  "تاريخ انتهاء الجواز": "passportExpiry",
+  "تاريخ انتهاء بطاقة العمل": "workCardExpiry",
+  "ملاحظات": "notes",
+};
+const DOC_DATE_FIELDS = new Set(["birthDate","joiningDate","resignationDate","iqamaExpiry","passportExpiry","workCardExpiry"]);
+
+function normalizeImportDate(val){
+  if(val === null || val === undefined || val === '') return '';
+  if(val instanceof Date){
+    const y = val.getFullYear(), m = String(val.getMonth()+1).padStart(2,'0'), d = String(val.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(val).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const parsed = new Date(s);
+  if(!isNaN(parsed.getTime())){
+    const y = parsed.getFullYear(), m = String(parsed.getMonth()+1).padStart(2,'0'), d = String(parsed.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  return s;
+}
+
+function handleDocsImportFile(file){
+  const msg = document.getElementById('importDocsMsg');
+  if(msg) msg.textContent = "جارٍ قراءة الملف...";
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      let added = 0, updated = 0, skipped = 0;
+      rows.forEach(row=>{
+        const rec = {};
+        Object.entries(DOC_FIELD_MAP).forEach(([ar, key])=>{
+          let v = row[ar];
+          v = DOC_DATE_FIELDS.has(key) ? normalizeImportDate(v) : ((v===null||v===undefined) ? '' : String(v).trim());
+          rec[key] = v;
+        });
+        if(!rec.name){ skipped++; return; }
+        let existing = null;
+        if(rec.employeeId) existing = state.documents.find(d=>d.employeeId===rec.employeeId);
+        if(!existing) existing = state.documents.find(d=>d.name===rec.name);
+        if(existing){
+          Object.assign(existing, rec);
+          updated++;
+        } else {
+          state.documents.push({ id: nextId('d'), team: state.teams[0].id, workCardExpiry:'', ...rec });
+          added++;
+        }
+      });
+      if(msg) msg.textContent = `تم الاستيراد: ${added} سجل جديد، ${updated} سجل محدَّث${skipped?`، ${skipped} صف متجاهل (بدون اسم)`:''}`;
+      render();
+      saveDataToDrive();
+    } catch(err){
+      if(msg) msg.textContent = "تعذّرت قراءة الملف — تأكد أنه ملف إكسل صالح بنفس تنسيق النموذج";
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function downloadDocumentsTemplate(){
+  const headers = Object.keys(DOC_FIELD_MAP);
+  const rows = state.documents.map(d => headers.map(h => d[DOC_FIELD_MAP[h]] || ''));
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = headers.map(()=>({ wch: 20 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "بيانات الخبراء");
+  XLSX.writeFile(wb, "نموذج_استيراد_الخبراء.xlsx");
+}
+
 function docStatCard(label,val,color,ic){
   return `<div class="statcard"><div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:12.5px;color:var(--muted);font-weight:600;">${label}</span>${icon(ic,16,color)}</div>
   <div class="disp" style="font-size:28px;font-weight:800;color:${color};margin-top:6px;">${val}</div></div>`;
@@ -1510,6 +1596,12 @@ function renderDocuments(){
       ${docStatCard("سارية", stats.ok, "var(--green)", "check")}
     </div>
     ${toolbar("إضافة سجل","addDocumentBtn")}
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin:-8px 0 16px;">
+      <button id="importDocsBtn" style="display:flex;align-items:center;gap:6px;background:#fff;color:var(--teal);border:1px solid var(--line);padding:8px 14px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('report',13)} استيراد من إكسل</button>
+      <button id="downloadTemplateBtn" style="display:flex;align-items:center;gap:6px;background:#fff;color:var(--muted);border:1px solid var(--line);padding:8px 14px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('report',13)} تنزيل نموذج إكسل</button>
+      <input type="file" id="importDocsFile" accept=".xlsx,.xls" style="display:none;">
+    </div>
+    <div id="importDocsMsg" style="font-size:12px;color:var(--muted);margin:-10px 0 14px;min-height:16px;"></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;">
       ${cards}
     </div>`;
@@ -1993,6 +2085,18 @@ function bindEvents(){
       if(d) openDocumentForm(d);
     });
   });
+  const importDocsBtn = document.getElementById('importDocsBtn');
+  const importDocsFile = document.getElementById('importDocsFile');
+  if(importDocsBtn && importDocsFile){
+    importDocsBtn.addEventListener('click', ()=> importDocsFile.click());
+    importDocsFile.addEventListener('change', (e)=>{
+      const file = e.target.files[0];
+      if(file) handleDocsImportFile(file);
+      importDocsFile.value = '';
+    });
+  }
+  const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
+  if(downloadTemplateBtn) downloadTemplateBtn.addEventListener('click', downloadDocumentsTemplate);
 
   const reportBtn = document.getElementById('reportBtn');
   if(reportBtn) reportBtn.addEventListener('click', printReport);

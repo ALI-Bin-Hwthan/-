@@ -171,6 +171,7 @@ const state = {
   hrBatch2Applied: false,
   chrisEastIdFixed: false,
   friedrichAdded: false,
+  nourBirthApplied: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -355,6 +356,7 @@ async function loadDataFromDrive(){
       state.hrBatch2Applied = !!data.hrBatch2Applied;
       state.chrisEastIdFixed = !!data.chrisEastIdFixed;
       state.friedrichAdded = !!data.friedrichAdded;
+      state.nourBirthApplied = !!data.nourBirthApplied;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -460,6 +462,11 @@ async function loadDataFromDrive(){
   if(!state.friedrichAdded){
     ensureFriedrich();
     state.friedrichAdded = true;
+    needsSave = true;
+  }
+  if(!state.nourBirthApplied){
+    applyNourBirthDate();
+    state.nourBirthApplied = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -889,10 +896,20 @@ function ensureFriedrich(){
   return true;
 }
 
+/* تحديث تاريخ ميلاد وحالة نور البشر من نموذج بيانات الموظف — يعمل مرة واحدة بفضل علامة nourBirthApplied */
+function applyNourBirthDate(){
+  const d = state.documents.find(x=>x.employeeId==="u800525");
+  if(d && d.birthDate !== "1989-08-19"){
+    d.birthDate = "1989-08-19";
+    return true;
+  }
+  return false;
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {

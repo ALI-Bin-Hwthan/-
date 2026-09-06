@@ -300,8 +300,8 @@ async function driveGetFileContent(fileId){
   return await res.text();
 }
 
-async function driveCreateFile(content){
-  const metadata = { name: DRIVE_FILE_NAME, mimeType: "application/json" };
+async function driveCreateFile(content, fileName){
+  const metadata = { name: fileName || DRIVE_FILE_NAME, mimeType: "application/json" };
   const boundary = "-------wateeraBoundary";
   const body =
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n` +
@@ -314,6 +314,40 @@ async function driveCreateFile(content){
   if(!res.ok) throw new Error("drive_create_failed");
   const data = await res.json();
   return data.id;
+}
+
+async function driveDeleteFile(fileId){
+  await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${driveAccessToken}` },
+  });
+}
+
+async function driveListAutoBackups(){
+  const q = encodeURIComponent(`name contains 'wateera-autobackup-' and trashed=false`);
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&fields=files(id,name,createdTime)&orderBy=createdTime desc`, {
+    headers: { Authorization: `Bearer ${driveAccessToken}` }
+  });
+  if(!res.ok) return [];
+  const data = await res.json();
+  return data.files || [];
+}
+
+const AUTO_BACKUP_KEEP = 15;
+
+/* يحفظ نسخة احتياطية تلقائية بتاريخ ووقت داخل نفس Google Drive عند كل حفظ — شبكة أمان ضد أي خطأ برمجي مستقبلي، بدون أي تدخل يدوي */
+async function saveAutoBackupToDrive(content){
+  try{
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    await driveCreateFile(content, `wateera-autobackup-${stamp}.json`);
+    const backups = await driveListAutoBackups();
+    if(backups.length > AUTO_BACKUP_KEEP){
+      const toDelete = backups.slice(AUTO_BACKUP_KEEP);
+      for(const f of toDelete){ await driveDeleteFile(f.id); }
+    }
+  } catch(e){
+    // فشل النسخ الاحتياطي التلقائي لا يوقف الحفظ الأساسي
+  }
 }
 
 async function driveUpdateFile(fileId, content){
@@ -389,11 +423,6 @@ async function loadDataFromDrive(){
   }
   let needsSave = ensureBaselineTeams();
   needsSave = ensureBaselineFacilities() || needsSave;
-  if(!state.trialCleared){
-    clearTrialData();
-    state.trialCleared = true;
-    needsSave = true;
-  }
   if(!state.expertsImported){
     ensureBaselineExperts();
     state.expertsImported = true;
@@ -523,14 +552,6 @@ function ensureBaselineTeams(){
     }
   });
   return changed;
-}
-
-/* حذف لمرة واحدة لكل بيانات التجربة الأولية (مهام + تراسل + مرافق تجريبية) بناءً على طلب المستخدم — لا يعيد التنفيذ بفضل علامة trialCleared المحفوظة */
-function clearTrialData(){
-  state.tasks = [];
-  state.corr = [];
-  const demoFacilityKeys = new Set(["L-101","L-102","S-201","S-202","L-103"]);
-  state.facilities = state.facilities.filter(f => !demoFacilityKeys.has(f.key));
 }
 
 /* يضيف مختبرات أساسية إذا لم تكن موجودة بعد — آمن للتشغيل المتكرر، لا يكرر أي إدخال */
@@ -1074,6 +1095,7 @@ async function saveDataToDrive(){
     } else {
       await driveUpdateFile(driveFileId, payload);
     }
+    saveAutoBackupToDrive(payload); // شبكة أمان تلقائية، لا تعطّل الحفظ الأساسي لو فشلت
     const t = new Date().toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit' });
     state.saveStatus = "آخر حفظ في Google Drive: " + t;
     updateSaveIndicator(state.saveStatus, "#B9C2D0");
@@ -1163,6 +1185,7 @@ function renderHeader(){
         <button id="reportBtn" title="تقرير PDF احترافي" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);color:#E4E9F0;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('report',14)} تقرير PDF</button>
         <button id="exportBtn" title="تنزيل نسخة احتياطية (JSON)" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);color:#E4E9F0;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('download',14)} نسخة احتياطية</button>
         <button id="importBtn" title="استيراد نسخة احتياطية (JSON)" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);color:#E4E9F0;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('upload',14)} استيراد</button>
+        <button id="restoreBtn" title="استرجاع نسخة سابقة تلقائية" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.08);color:#E4E9F0;border:1px solid rgba(255,255,255,.2);padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('report',14)} استرجاع نسخة سابقة</button>
         <input type="file" id="importFile" accept="application/json" style="display:none;">
         <div style="display:flex;gap:8px;background:rgba(255,255,255,.06);padding:6px;border-radius:12px;">
           ${tabs.map(([id,label,ic])=>`<button data-tab="${id}" class="tabbtn ${state.tab===id?'active':''}">${icon(ic,15)} ${label}</button>`).join("")}
@@ -1753,6 +1776,65 @@ function inputRow(label, inner, full){
 function statusOptions(map, selected){
   return Object.entries(map).map(([k,v])=>`<option value="${k}" ${k===selected?'selected':''}>${v.label}</option>`).join("");
 }
+async function openRestoreModal(){
+  openModal("استرجاع نسخة سابقة", `<div id="restoreListHost" style="max-height:360px;overflow-y:auto;font-size:13px;color:var(--muted);">جارٍ التحميل...</div>`, closeModal);
+  try{
+    const backups = await driveListAutoBackups();
+    const host = document.getElementById('restoreListHost');
+    if(!host) return;
+    if(!backups.length){
+      host.innerHTML = `<div>لا توجد نسخ احتياطية تلقائية بعد — أول نسخة تُنشأ تلقائيًا مع أول حفظ من الآن فصاعدًا.</div>`;
+      return;
+    }
+    host.innerHTML = backups.map(b=>{
+      const d = new Date(b.createdTime);
+      const label = d.toLocaleString('ar-SA', { year:'numeric', month:'long', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);">
+        <span style="font-size:13px;color:var(--ink);">${label}</span>
+        <button class="restorePickBtn" data-id="${b.id}" style="padding:6px 14px;border-radius:8px;border:none;background:var(--navy);color:#fff;font-size:12px;font-weight:600;cursor:pointer;">استرجاع</button>
+      </div>`;
+    }).join("");
+    host.querySelectorAll('.restorePickBtn').forEach(btn=>{
+      btn.addEventListener('click', ()=> restoreFromBackup(btn.getAttribute('data-id')));
+    });
+  } catch(e){
+    const host = document.getElementById('restoreListHost');
+    if(host) host.innerHTML = `<div style="color:var(--red);">تعذّر تحميل قائمة النسخ الاحتياطية.</div>`;
+  }
+}
+
+async function restoreFromBackup(fileId){
+  if(!confirm("سيتم استبدال كل البيانات الحالية بهذي النسخة الاحتياطية. سنأخذ نسخة من وضعك الحالي أولاً للأمان. هل تريد المتابعة؟")) return;
+  try{
+    const currentPayload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied });
+    await saveAutoBackupToDrive(currentPayload);
+
+    const raw = await driveGetFileContent(fileId);
+    const data = JSON.parse(raw);
+    state.teams = data.teams || state.teams;
+    state.tasks = data.tasks || [];
+    state.corr = data.corr || [];
+    state.facilities = data.facilities || [];
+    state.documents = data.documents || [];
+    idCounter = data.idCounter || idCounter;
+    Object.assign(state, {
+      expertsImported: !!data.expertsImported, passportScansApplied: !!data.passportScansApplied,
+      iqamaScansApplied: !!data.iqamaScansApplied, sultanAdded: !!data.sultanAdded, abdallatifAdded: !!data.abdallatifAdded,
+      iqamaScansApplied2: !!data.iqamaScansApplied2, mubashirAdded: !!data.mubashirAdded, mustakeemAdded: !!data.mustakeemAdded,
+      passportScansApplied3: !!data.passportScansApplied3, passportScansApplied4: !!data.passportScansApplied4, passportScansApplied5: !!data.passportScansApplied5,
+      amrAdded: !!data.amrAdded, imranAdded: !!data.imranAdded, joiningDatesApplied: !!data.joiningDatesApplied, hrBatch2Applied: !!data.hrBatch2Applied,
+      chrisEastIdFixed: !!data.chrisEastIdFixed, friedrichAdded: !!data.friedrichAdded, nourBirthApplied: !!data.nourBirthApplied,
+      nikolayAdded: !!data.nikolayAdded, masterListApplied: !!data.masterListApplied, conflictsResolved: !!data.conflictsResolved, gradesApplied: !!data.gradesApplied,
+    });
+    closeModal();
+    render();
+    await saveDataToDrive();
+    alert("تم استرجاع النسخة الاحتياطية بنجاح.");
+  } catch(e){
+    alert("تعذّر الاسترجاع: " + e.message);
+  }
+}
+
 function openModal(title, bodyHtml, onSave){
   const host = document.getElementById('modalHost');
   if(!host) return;
@@ -2214,6 +2296,8 @@ function bindEvents(){
   if(reportBtn) reportBtn.addEventListener('click', printReport);
   const signOutBtn = document.getElementById('signOutBtn');
   if(signOutBtn) signOutBtn.addEventListener('click', signOut);
+  const restoreBtn = document.getElementById('restoreBtn');
+  if(restoreBtn) restoreBtn.addEventListener('click', openRestoreModal);
 
   const exportBtn = document.getElementById('exportBtn');
   if(exportBtn) exportBtn.addEventListener('click', ()=>{

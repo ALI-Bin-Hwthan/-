@@ -206,6 +206,11 @@ const DOC_STATUS = {
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function daysFrom(dateStr){ return Math.floor((new Date() - new Date(dateStr)) / 86400000); }
 function isOverdue(item){ return item.status !== "done" && item.dueDate && daysFrom(item.dueDate) > 3; }
+function flightClassForGrade(grade){
+  const map = { GA:"درجة رجال الأعمال", GB:"درجة رجال الأعمال", GC:"الدرجة السياحية", GD:"الدرجة السياحية", GE:"الدرجة السياحية", GF:"الدرجة السياحية" };
+  return map[grade] || "";
+}
+
 function docDateStatus(dateStr){
   if(!dateStr) return 'none';
   const d = daysFrom(dateStr); // موجب = أيام مضت منذ الانتهاء (منتهية)، سالب = أيام متبقية حتى الانتهاء
@@ -1598,6 +1603,7 @@ function renderDocuments(){
             <span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(d.team)}"></span>${esc(teamName(d.team))}</span>
             ${d.jobTitle?`<span style="font-size:11.5px;color:var(--muted);">· ${esc(d.jobTitle)}</span>`:''}
             ${d.grade?`<span class="chip" style="background:#EEF2FA;color:var(--navy2);font-size:10.5px;padding:2px 8px;">${esc(d.grade)}</span>`:''}
+            ${d.grade && flightClassForGrade(d.grade)?`<span class="chip" style="background:#F3EEFB;color:#6B3FA0;font-size:10.5px;padding:2px 8px;">✈️ ${esc(flightClassForGrade(d.grade))}</span>`:''}
           </div>
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
@@ -1890,6 +1896,7 @@ function buildExpertFileHTML(d){
         ${row("الإدارة", esc(teamName(d.team)))}
         ${row("المسمى الوظيفي", esc(d.jobTitle))}
         ${row("الدرجة", esc(d.grade))}
+        ${d.grade ? row("درجة الطيران (الانتداب)", esc(flightClassForGrade(d.grade))) : ''}
         ${row("الجنسية", esc(d.nationality))}
         ${row("المدينة", esc(d.city))}
         ${row("تاريخ الميلاد", esc(d.birthDate))}

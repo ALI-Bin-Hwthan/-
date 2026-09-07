@@ -1784,43 +1784,9 @@ async function sendChatMessage(text){
 }
 
 function renderCopilot(){
-  const docsListHtml = state.knowledgeDocs.length
-    ? state.knowledgeDocs.map(d => `
-        <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--line);border-radius:9px;padding:9px 12px;margin-bottom:6px;">
-          <span style="display:flex;align-items:center;gap:8px;font-size:12.5px;">${icon('report',14,'var(--teal)')} ${esc(d.name)} <span style="color:var(--muted);font-size:10.5px;">(${d.addedAt})</span></span>
-          <button class="removeKbBtn" data-id="${d.id}" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px;">${icon('x',12)}</button>
-        </div>`).join("")
-    : `<div style="color:var(--muted);font-size:12.5px;padding:10px 0;">ما فيه أي ملف مرجعي مرفوع بعد. ارفع نظام العمل أو اللائحة التنفيذية عشان يقدر المساعد يجاوبك بدقة منها.</div>`;
-
-  const chatHtml = state.chatMessages.length
-    ? state.chatMessages.map(m => `
-        <div style="display:flex;justify-content:${m.role==='user'?'flex-start':'flex-end'};margin-bottom:10px;">
-          <div style="max-width:78%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.7;white-space:pre-wrap;
-            background:${m.role==='user'?'#EEF2FA':'var(--navy)'};color:${m.role==='user'?'var(--ink)':'#fff'};">
-            ${esc(m.content)}
-          </div>
-        </div>`).join("")
-    : `<div style="color:var(--muted);font-size:12.5px;text-align:center;padding:40px 0;">اسأل المساعد أي سؤال عن نظام العمل أو اللائحة التنفيذية بعد ما ترفع الملفات المرجعية.</div>`;
-
   return `
-    <div style="display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:start;">
-      <div class="card" style="padding:16px;">
-        <div style="font-weight:800;font-size:14px;margin-bottom:10px;">📎 الملفات المرجعية</div>
-        <div style="margin-bottom:10px;">${docsListHtml}</div>
-        <button id="uploadKbBtn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;background:var(--navy);color:#fff;border:none;padding:9px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;">${icon('upload',14)} رفع ملف (PDF / Word / نص)</button>
-        <input type="file" id="uploadKbFile" accept=".pdf,.docx,.txt" style="display:none;">
-        <div id="copilotUploadMsg" style="font-size:11.5px;color:var(--muted);margin-top:8px;min-height:16px;"></div>
-      </div>
-      <div class="card" style="padding:0;display:flex;flex-direction:column;height:560px;">
-        <div style="padding:14px 18px;border-bottom:1px solid var(--line);font-weight:800;font-size:14px;display:flex;align-items:center;gap:8px;">
-          ${icon('chat',16,'var(--teal)')} المساعد الذكي — نظام العمل واللائحة التنفيذية
-        </div>
-        <div id="chatScrollBox" style="flex:1;overflow-y:auto;padding:18px;">${chatHtml}</div>
-        <div style="padding:12px 14px;border-top:1px solid var(--line);display:flex;gap:8px;">
-          <input type="text" id="chatInput" placeholder="اكتب سؤالك هنا..." style="flex:1;padding:10px 14px;border-radius:9px;border:1px solid var(--line);font-size:13px;" ${state.chatBusy?'disabled':''}>
-          <button id="chatSendBtn" style="padding:10px 20px;border-radius:9px;border:none;background:var(--teal);color:#fff;font-weight:700;font-size:13px;cursor:pointer;" ${state.chatBusy?'disabled':''}>${state.chatBusy?'...':'إرسال'}</button>
-        </div>
-      </div>
+    <div class="card" style="padding:0;overflow:hidden;height:78vh;min-height:560px;">
+      <iframe src="hr_copilot.html" style="width:100%;height:100%;border:none;display:block;" title="المساعد الذكي"></iframe>
     </div>`;
 }
 

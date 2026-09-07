@@ -1942,7 +1942,7 @@ discipline:{trigger:q=>/غياب|تأخر|تاخر|تغيب|مخالفة|جزا�
 performance:{trigger:q=>/اداء|أداء|تقييم|ضعيف|kpi|خطة تحسين|تحسين/.test(norm(q)),kb:'PERF-PIP-002',steps:[{key:'period',q:'مدة ضعف الأداء؟',o:[['one','تقييم واحد'],['two','سنتان أو أكثر'],['unknown','غير متأكد']]},{key:'pip',q:'هل توجد خطة تحسين أداء؟',o:[['yes','نعم'],['no','لا'],['pending','قيد الإعداد']]},{key:'notice',q:'هل أُخطر الموظف؟',o:[['yes','نعم'],['no','لا'],['unknown','غير متأكد']]}]},
 benefit:{trigger:q=>/بدل|راتب|سكن|نقل|مواصلات|تعليم|مناوبة|خطر|نائ/.test(norm(q))&&!/احسب|كم/.test(norm(q)),kb:'PAY-HOUSING-001',steps:[{key:'benefit',q:'أي بدل تريد؟',o:[['housing','بدل السكن'],['transport','بدل النقل'],['education','تعليم الأبناء'],['risk','مناوبة/خطر'],['remote','مناطق نائية']]},{key:'salary',q:'هل لديك الراتب الأساسي؟',o:[['yes','نعم'],['no','لا'],['unknown','غير متأكد']]}]}
 };
-function startFlow(name,flow){currentFlow={name,idx:0,answers:{},kb:flow.kb};let k=KB.find(x=>x.id===flow.kb);return `<div class="card-title">تحليل الحالة</div><div class="meta"><span class="pill green">${k.domain}</span><span class="pill blue">${k.topic}</span><span class="pill yellow">استكمال بالاختيار</span></div><div class="section primary"><h3>ما فهمته</h3>${k.answer}</div>`+stepHtml(name,flow.steps[0])} function stepHtml(name,step){return `<div class="section rec"><h3>${step.q}</h3><div class="choice-grid">${step.o.map(o=>`<button class="choice" onclick="choose('${name}','${step.key}','${o[0]}','${o[1]}')">${o[1]}</button>`).join('')}</div></div>`} function choose(name,key,val,label){if(!currentFlow||currentFlow.name!==name)return; currentFlow.answers[key]={val,label}; MEMORY[key]=label; saveMem(); let flow=FLOWS[name]; currentFlow.idx++; if(currentFlow.idx<flow.steps.length)hrAddBot(stepHtml(name,flow.steps[currentFlow.idx]),'استكمال بيانات الحالة'); else {let k=KB.find(x=>x.id===currentFlow.kb); hrAddBot(finalCase(k,currentFlow.answers),sourceTag(k)); currentFlow=null;}}
+function startFlow(name,flow){currentFlow={name,idx:0,answers:{},kb:flow.kb};let k=KB.find(x=>x.id===flow.kb);return `<div class="card-title">تحليل الحالة</div><div class="meta"><span class="pill green">${k.domain}</span><span class="pill blue">${k.topic}</span><span class="pill yellow">استكمال بالاختيار</span></div><div class="section primary"><h3>ما فهمته</h3>${k.answer}</div>`+stepHtml(name,flow.steps[0])} function stepHtml(name,step){return `<div class="section rec"><h3>${step.q}</h3><div class="choice-grid">${step.o.map(o=>`<button class="choice" onclick="choose('${name}','${step.key}','${o[0]}','${o[1]}')">${o[1]}</button>`).join('')}</div></div>`} function choose(name,key,val,label){if(!currentFlow||currentFlow.name!==name)return; currentFlow.answers[key]={val,label}; MEMORY[key]=label; saveMem(); let flow=FLOWS[name]; currentFlow.idx++; if(currentFlow.idx<flow.steps.length)hrAddBot(stepHtml(name,flow.steps[currentFlow.idx]),'استكمال بيانات الحالة'); else {let k=KB.find(x=>x.id===currentFlow.kb); hrAddBot(finalCase(k,currentFlow.answers)+dualRef(k),sourceTag(k)); currentFlow=null;}}
 function finalCase(k,a){let eos='',decision=`يتعامل مع الحالة وفق ${k.topic} مع توثيق السبب، وتحديد الصلاحية، وعدم صرف أي استحقاق أو إغلاق ملف الموظف قبل التحقق من المستندات والعهد والتأشيرة.`; if(k.id==='HR-TRANSFER-001'){let req=a.requester?.label||'غير محدد',loc=a.location?.label||'غير محدد',typ=a.type?.label||'غير محدد'; decision=`الحالة تصنف كـ ${k.topic}. بما أن مصدر الطلب: ${req}، والنطاق: ${loc}، وطبيعة الإجراء: ${typ}، فالإجراء الأفضل هو إصدار قرار مكتوب يحدد المدة أو الديمومة، الموقع الجديد، تاريخ المباشرة، وأثره على البدلات أو العقد قبل التنفيذ.`} if(a.service){let v=a.service.val; eos=v==='lt2'?'لا يستحق مكافأة عند الاستقالة إذا كانت الخدمة أقل من سنتين.':v==='2to5'?'يستحق ثلث المكافأة عند الاستقالة.':v==='5to10'?'يستحق ثلثي المكافأة عند الاستقالة.':'يستحق كامل المكافأة عند الاستقالة إذا بلغت الخدمة 10 سنوات فأكثر.'} let r='ref'+Math.random().toString(36).slice(2); return `<div class="card-title">الرأي التنفيذي المبدئي</div><div class="meta">${Object.values(a).map(x=>`<span class="pill blue">${x.label}</span>`).join('')}</div><div class="section primary"><h3>القرار المقترح</h3>${decision}</div>${eos?`<div class="ok">${eos}</div>`:''}<div class="section rec"><h3>خطوات التنفيذ</h3><ul>${k.steps.map(x=>`<li>${x}</li>`).join('')}</ul></div><div class="actions"><button class="action" onclick="toggle('${r}')">إظهار نص المادة والمرجع</button><button class="action" onclick="quick('اكتب لي صيغة قرار أو خطاب لهذه الحالة')">صيغة خطاب</button></div>${renderRef(k,r)}`}
 function detectFlow(q){
   const nq=expandQuery(q);
@@ -1960,7 +1960,12 @@ function smartClarify(q,hits=[]){
 }
 function unknown(q){
   const hits=intentHits(q);
-  return smartClarify(q,hits);
+  let refHtml = '';
+  if(hits.length){
+    const k = KB.find(x=>x.id===hits[0].kb);
+    if(k) refHtml = dualRef(k);
+  }
+  return smartClarify(q,hits) + refHtml;
 }
 function topicsList(){return `<div class="card-title">المواضيع المعكوسة في النسخة الحالية</div><div class="section primary"><h3>الفهرس</h3><ul>${KB.map(k=>`<li><b>${k.domain}</b> — ${k.topic} <span style="color:#8aa3c0">(${k.article})</span></li>`).join('')}</ul></div>`}
 function generalOptions(k){
@@ -2004,7 +2009,15 @@ function personalContext(q, k) {
 }
 
 function dualRef(k) {
-  if (!k.swa_text && !k.labor_text) return '';
+  if (!k) return '';
+  if (!k.swa_text && !k.labor_text) {
+    if (!k.source && !k.ref && !k.answer) return '';
+    return `<div class="dual-ref"><div class="ref-block swa-block">
+      <div class="ref-block-title">📚 المرجع</div>
+      <div class="ref-article">${(k.source||'')}${k.article?' — '+k.article:''}</div>
+      <div class="ref-text">${k.ref||k.answer||''}</div>
+    </div></div>`;
+  }
   let html = '<div class="dual-ref">';
   if (k.swa_text) {
     html += `<div class="ref-block swa-block">
@@ -2033,7 +2046,7 @@ function getReply(q){
     calc.html = personalContext(q,k2) + calc.html + dualRef(k2);
     return calc;
   }
-  let fl=detectFlow(q); if(fl){let [n,f]=fl,k=KB.find(x=>x.id===f.kb); return {tag:sourceTag(k),html:personalContext(q,k)+startFlow(n,f)}}
+  let fl=detectFlow(q); if(fl){let [n,f]=fl,k=KB.find(x=>x.id===f.kb); return {tag:sourceTag(k),html:personalContext(q,k)+startFlow(n,f)+dualRef(k)}}
   let hits=intentHits(q); let [sc,k]=findKB(q);
   if(sc>=18 || (hits[0]&&hits[0].score>=18&&k)){
     let extra = personalContext(q,k);

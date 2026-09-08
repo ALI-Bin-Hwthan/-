@@ -1783,9 +1783,8 @@ function renderDocuments(){
     );
     const leaveUpcomingNote = (leaveInfo && !leaveInfo.inactive && !leaveInfo.onLeave && leaveInfo.upcoming)
       ? `<div style="font-size:10.5px;color:var(--muted);margin-top:2px;">إجازة قادمة: ${esc(leaveInfo.upcoming.from)} → ${esc(leaveInfo.upcoming.to)}</div>` : '';
-    const leaveFileLink = d.leaveFileUrl
-      ? `<a href="${d.leaveFileUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;color:var(--teal);font-size:10px;font-weight:600;margin-top:3px;">${icon('card',9)} عرض ملف الإجازة</a>`
-      : '';
+    const leaveCount = (d.leaveHistory||[]).length;
+    const leaveFileLink = `<button class="linkbtn manageLeaveBtn" data-id="${d.id}" style="color:var(--teal);font-size:10px;margin-top:3px;padding:0;">📁 إدارة ملفات الإجازات${leaveCount?` (${leaveCount})`:''}</button>`;
     const leaveBalanceValue = (!leaveInfo)
       ? '<span style="color:var(--muted);font-weight:400;">— لا تتوفر بيانات مباشرة/رصيد</span>'
       : (leaveInfo.inactive
@@ -2230,6 +2229,103 @@ function renderCopilot(){
     </div>`;
 }
 
+/* نافذة إدارة ملفات الإجازات — تسمح بإرفاق ملف مستقل لكل إجازة على حدة (خلافًا لملفات الإقامة/الجواز التي هي ملف واحد ثابت لكل خبير) */
+function openLeaveManageModal(docId){
+  const d = state.documents.find(x=>x.id===docId);
+  if(!d) return;
+  if(!d.leaveHistory) d.leaveHistory = [];
+
+  function bodyHtml(){
+    const rows = d.leaveHistory.map((h, idx) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);flex-wrap:wrap;">
+        <div style="flex:1;min-width:170px;font-size:12.5px;">
+          <b>${esc(h.from)} → ${esc(h.to)}</b> <span style="color:var(--muted);">(${esc(h.days)} يوم)</span>
+          ${h.note ? `<div style="color:var(--muted);font-size:11px;margin-top:1px;">${esc(h.note)}</div>` : ''}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          ${h.fileUrl ? `<a href="${h.fileUrl}" target="_blank" rel="noopener" style="font-size:11px;color:var(--teal);font-weight:600;">📎 عرض الملف</a>` : `<span style="font-size:11px;color:var(--muted);">لا يوجد ملف</span>`}
+          <input type="file" accept=".pdf,image/*" data-leave-upload="${idx}" style="font-size:10.5px;max-width:120px;">
+          <button data-leave-delete="${idx}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:11.5px;">حذف</button>
+        </div>
+      </div>`).join("") || `<div style="color:var(--muted);font-size:12.5px;padding:10px 0;">لا توجد إجازات مسجلة بعد.</div>`;
+
+    return `
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">${esc(d.name)} — أرفق ملف نموذج الطلب لكل إجازة على حدة (يمكن إضافة أكثر من إجازة وملف).</div>
+      <div id="leaveRowsHost">${rows}</div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px;">إضافة إجازة جديدة</div>
+        <div class="fgrid">
+          ${inputRow("من تاريخ", `<input type="date" id="lv_from">`)}
+          ${inputRow("إلى تاريخ", `<input type="date" id="lv_to">`)}
+          ${inputRow("ملاحظة", `<input type="text" id="lv_note" placeholder="مثال: إجازة سنوية">`, true)}
+          ${inputRow("ملف الإجازة (اختياري)", `<input type="file" id="lv_file" accept=".pdf,image/*">`, true)}
+        </div>
+        <button id="lv_addBtn" style="margin-top:8px;padding:7px 16px;border-radius:8px;border:none;background:var(--teal);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">+ إضافة إجازة</button>
+      </div>
+      <div id="leaveModalMsg" style="font-size:11.5px;color:var(--muted);margin-top:8px;min-height:14px;"></div>`;
+  }
+
+  function open(){
+    openModal(`إدارة إجازات — ${d.name}`, bodyHtml(), ()=>{ closeModal(); render(); });
+    const saveBtn = document.getElementById('modalSave');
+    if(saveBtn) saveBtn.textContent = 'إغلاق';
+    const cancelBtn = document.getElementById('modalCancel');
+    if(cancelBtn) cancelBtn.addEventListener('click', render);
+
+    document.querySelectorAll('[data-leave-upload]').forEach(inp=>{
+      inp.addEventListener('change', async (e)=>{
+        const idx = Number(inp.getAttribute('data-leave-upload'));
+        const file = e.target.files[0];
+        if(!file) return;
+        const msg = document.getElementById('leaveModalMsg');
+        if(msg) msg.textContent = 'جارٍ رفع الملف...';
+        try{
+          const entry = d.leaveHistory[idx];
+          const uploaded = await driveUploadFile(file, `${d.name} — إجازة ${entry.from}`);
+          d.leaveHistory[idx].fileUrl = uploaded.url;
+          await saveDataToDrive();
+          open();
+        } catch(err){
+          if(msg) msg.textContent = 'تعذّر رفع الملف — تأكّد من اتصالك وحاول مرة أخرى';
+        }
+      });
+    });
+    document.querySelectorAll('[data-leave-delete]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const idx = Number(btn.getAttribute('data-leave-delete'));
+        d.leaveHistory.splice(idx,1);
+        await saveDataToDrive();
+        open();
+      });
+    });
+    const addBtn = document.getElementById('lv_addBtn');
+    if(addBtn) addBtn.addEventListener('click', async ()=>{
+      const from = document.getElementById('lv_from').value;
+      const to = document.getElementById('lv_to').value;
+      const note = document.getElementById('lv_note').value;
+      const fileInput = document.getElementById('lv_file');
+      const msg = document.getElementById('leaveModalMsg');
+      if(!from || !to || to < from){ if(msg) msg.textContent = 'الرجاء إدخال تاريخ بداية ونهاية صحيحين.'; return; }
+      const days = Math.round((new Date(to) - new Date(from)) / 86400000) + 1;
+      const entry = { from, to, days, note };
+      if(fileInput && fileInput.files && fileInput.files[0]){
+        if(msg) msg.textContent = 'جارٍ رفع الملف...';
+        try{
+          const uploaded = await driveUploadFile(fileInput.files[0], `${d.name} — إجازة ${from}`);
+          entry.fileUrl = uploaded.url;
+        } catch(err){
+          if(msg) msg.textContent = 'تعذّر رفع الملف — حاول مرة أخرى';
+          return;
+        }
+      }
+      d.leaveHistory.push(entry);
+      await saveDataToDrive();
+      open();
+    });
+  }
+  open();
+}
+
 function openDocumentForm(existing){
   const isEdit = !!existing;
   const fileStatus = (url, label) => url ? `<div style="font-size:11px;color:var(--teal);margin-top:4px;">📎 يوجد ${label} مرفق — اختر ملفًا جديدًا لاستبداله</div>` : '';
@@ -2247,7 +2343,6 @@ function openDocumentForm(existing){
       ${inputRow("مكان الميلاد", `<input type="text" id="d_birthPlace" value="${esc(existing?.birthPlace||'')}">`, true)}
       ${inputRow("تاريخ المباشرة", `<input type="date" id="d_joiningDate" value="${existing?.joiningDate||''}">`)}
       ${inputRow("تاريخ الاستقالة (إن وجد)", `<input type="date" id="d_resignationDate" value="${existing?.resignationDate||''}">`)}
-      ${inputRow("رفع ملف الإجازة (نموذج الطلب)", `<input type="file" id="d_leaveFile" accept=".pdf,image/*">${fileStatus(existing?.leaveFileUrl,'ملف إجازة')}`, true)}
       ${inputRow("رقم الإقامة", `<input type="text" id="d_iqamaNo" value="${esc(existing?.iqamaNo||'')}">`)}
       ${inputRow("تاريخ انتهاء الإقامة", `<input type="date" id="d_iqamaExpiry" value="${existing?.iqamaExpiry||''}">`)}
       ${inputRow("رفع صورة/PDF الإقامة", `<input type="file" id="d_iqamaFile" accept=".pdf,image/*">${fileStatus(existing?.iqamaFileUrl,'ملف إقامة')}`, true)}
@@ -2286,14 +2381,12 @@ function openDocumentForm(existing){
       iqamaFileUrl: existing?.iqamaFileUrl || null,
       passportFileUrl: existing?.passportFileUrl || null,
       workCardFileUrl: existing?.workCardFileUrl || null,
-      leaveFileUrl: existing?.leaveFileUrl || null,
     };
 
     const uploads = [
       { input: document.getElementById('d_iqamaFile'), key: 'iqamaFileUrl', label: 'الإقامة' },
       { input: document.getElementById('d_passportFile'), key: 'passportFileUrl', label: 'الجواز' },
       { input: document.getElementById('d_workCardFile'), key: 'workCardFileUrl', label: 'بطاقة العمل' },
-      { input: document.getElementById('d_leaveFile'), key: 'leaveFileUrl', label: 'الإجازة' },
     ].filter(u => u.input && u.input.files && u.input.files[0]);
 
     if(uploads.length){
@@ -2544,7 +2637,7 @@ function buildExpertFileHTML(d){
         ${row("رقم الجواز", esc(d.passportNo))}
         ${dateRow("تاريخ انتهاء الجواز", d.passportExpiry, d.passportFileUrl)}
         ${dateRow("تاريخ انتهاء بطاقة العمل", d.workCardExpiry, d.workCardFileUrl)}
-        ${(()=>{ const li = computeExpertLeave(d); if(!li) return ''; const val = li.inactive ? `مستقيل بتاريخ ${li.resignationDate}` : `${li.balance} يوم${li.onLeave?` — في إجازة حتى ${li.returnDate}`:''}`; return row("رصيد الإجازات", `${val}${d.leaveFileUrl?` — <a href="${d.leaveFileUrl}" target="_blank">عرض ملف الإجازة</a>`:''}`); })()}
+        ${(()=>{ const li = computeExpertLeave(d); if(!li) return ''; const val = li.inactive ? `مستقيل بتاريخ ${li.resignationDate}` : `${li.balance} يوم${li.onLeave?` — في إجازة حتى ${li.returnDate}`:''}`; const files = (d.leaveHistory||[]).filter(h=>h.fileUrl); const filesHtml = files.length ? ' — ' + files.map((h,i)=>`<a href="${h.fileUrl}" target="_blank">ملف ${i+1}</a>`).join('، ') : ''; return row("رصيد الإجازات", `${val}${filesHtml}`); })()}
         ${d.notes ? row("ملاحظات", esc(d.notes)) : ''}
       </table>
     </div>`;
@@ -2823,6 +2916,9 @@ function bindEvents(){
       const d = state.documents.find(x=>x.id===btn.getAttribute('data-id'));
       if(d) openDocumentForm(d);
     });
+  });
+  root.querySelectorAll('.manageLeaveBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=> openLeaveManageModal(btn.getAttribute('data-id')));
   });
   const importDocsBtn = document.getElementById('importDocsBtn');
   const importDocsFile = document.getElementById('importDocsFile');

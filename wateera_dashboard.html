@@ -1234,12 +1234,20 @@ function computeExpertLeave(d){
 
   const balance = (Number(d.leaveSnapshotBalance)||0) + entitlementYears*25 - usedSinceSnapshot;
 
+  // تاريخ ذكرى المباشرة القادمة (تاريخ إضافة الـ25 يوم الجديد القادمة)
+  let nextEntitlementDate = new Date(join);
+  while(nextEntitlementDate <= today){
+    nextEntitlementDate.setFullYear(nextEntitlementDate.getFullYear()+1);
+  }
+  const nextEntitlementDateStr = nextEntitlementDate.toISOString().slice(0,10);
+
   return {
     inactive:false,
     balance,
     onLeave: !!onLeaveEntry,
     returnDate: onLeaveEntry ? onLeaveEntry.to : null,
     upcoming: upcoming ? { from:upcoming.from, to:upcoming.to } : null,
+    nextEntitlementDate: nextEntitlementDateStr,
   };
 }
 
@@ -1783,13 +1791,15 @@ function renderDocuments(){
     );
     const leaveUpcomingNote = (leaveInfo && !leaveInfo.inactive && !leaveInfo.onLeave && leaveInfo.upcoming)
       ? `<div style="font-size:10.5px;color:var(--muted);margin-top:2px;">إجازة قادمة: ${esc(leaveInfo.upcoming.from)} → ${esc(leaveInfo.upcoming.to)}</div>` : '';
+    const leaveNextEntitlementNote = (leaveInfo && !leaveInfo.inactive && leaveInfo.nextEntitlementDate)
+      ? `<div style="font-size:10.5px;color:var(--navy2);margin-top:2px;">📅 استحقاق +25 يوم القادم: ${esc(leaveInfo.nextEntitlementDate)}</div>` : '';
     const leaveCount = (d.leaveHistory||[]).length;
     const leaveFileLink = `<button class="linkbtn manageLeaveBtn" data-id="${d.id}" style="color:var(--teal);font-size:10px;margin-top:3px;padding:0;">📁 إدارة ملفات الإجازات${leaveCount?` (${leaveCount})`:''}</button>`;
     const leaveBalanceValue = (!leaveInfo)
       ? '<span style="color:var(--muted);font-weight:400;">— لا تتوفر بيانات مباشرة/رصيد</span>'
       : (leaveInfo.inactive
           ? `<span style="color:var(--muted);font-weight:400;">مستقيل بتاريخ ${esc(leaveInfo.resignationDate)}</span>`
-          : `${leaveInfo.balance} يوم${leaveUpcomingNote}`);
+          : `${leaveInfo.balance} يوم${leaveUpcomingNote}${leaveNextEntitlementNote}`);
     const leaveBalanceCell = `<div>${leaveBalanceValue}${leaveFileLink?`<div>${leaveFileLink}</div>`:''}</div>`;
     return `
     <div class="card" style="border-top:4px solid ${teamColor(d.team)};padding:16px 18px;font-size:12.5px;${resigned?'opacity:.7;':''}">

@@ -225,6 +225,7 @@ const state = {
   masterListApplied: false,
   conflictsResolved: false,
   gradesApplied: false,
+  leaveTrackingApplied: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -456,6 +457,7 @@ async function loadDataFromDrive(){
       state.chatMessages = data.chatMessages || [];
       state.conflictsResolved = !!data.conflictsResolved;
       state.gradesApplied = !!data.gradesApplied;
+      state.leaveTrackingApplied = !!data.leaveTrackingApplied;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -581,6 +583,11 @@ async function loadDataFromDrive(){
   if(!state.gradesApplied){
     applyGrades();
     state.gradesApplied = true;
+    needsSave = true;
+  }
+  if(!state.leaveTrackingApplied){
+    applyExpertLeaveTracking();
+    state.leaveTrackingApplied = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -1136,10 +1143,110 @@ function applyGrades(){
   return changed;
 }
 
+/* بيانات رصيد الإجازات السنوية للخبراء — مستخرجة من "Experts_Master_sheet_2026" (تاريخ مباشرة + رصيد حتى 19 إبريل 2026)
+   ونماذج طلبات الإجازة الفعلية المرفوعة (من/إلى/عدد الأيام) — يعمل مرة واحدة بفضل علامة leaveTrackingApplied.
+   المنطق: الرصيد = رصيد اللقطة (19 إبريل 2026) + (25 يوم × كل تاريخ مباشرة سنوي يمر بعد اللقطة وحتى اليوم)
+           − إجمالي أيام الإجازات المسجلة بعد تاريخ اللقطة. */
+function applyExpertLeaveTracking(){
+  const SNAPSHOT_DATE = "2026-04-19";
+  const leaveData = {
+    u800501: { balance: 20, history: [ { from:"2026-07-19", to:"2026-08-13", days:20, note:"إجازة سنوية" } ] }, // بيونغ سونغ بارك
+    u800502: { balance: 26, history: [
+      { from:"2026-05-24", to:"2026-06-04", days:5, note:"إجازة سنوية" },
+      { from:"2026-08-09", to:"2026-09-03", days:20, note:"إجازة سنوية" },
+    ] }, // سيونغ وون ايم
+    u800527: { balance: 6, history: [
+      { from:"2026-08-02", to:"2026-08-11", days:8, note:"إجازة سنوية" },
+      { from:"2026-09-13", to:"2026-09-14", days:2, note:"رحلة عمل — جبيل/خبر" },
+    ] }, // زيد لاتاري
+    u800513: { balance: 5, history: [ { from:"2026-09-07", to:"2026-09-07", days:1, note:"إجازة" } ] }, // شنغ لي
+    u800512: { balance: 47, history: [ { from:"2026-09-13", to:"2026-10-08", days:20, note:"إجازة سنوية — سيدني" } ] }, // غلام مصطفى
+    u800510: { balance: 19, history: [] }, // يونغ ووك يو — لا توجد طلبات إجازة حديثة مرفوعة
+    u800524: { balance: 50, history: [
+      { from:"2026-09-07", to:"2026-09-07", days:1, note:"إجازة" },
+      { from:"2026-10-11", to:"2026-10-29", days:15, note:"إجازة عائلية" },
+    ] }, // تشن يو لي
+    u800521: { balance: 16, history: [
+      { from:"2026-05-11", to:"2026-05-12", days:1, note:"إجازة" },
+      { from:"2026-07-12", to:"2026-07-13", days:2, note:"ورشة عمل رابغ" },
+      { from:"2026-08-02", to:"2026-08-03", days:2, note:"ورشة عمل رابغ" },
+      { from:"2026-08-09", to:"2026-08-13", days:5, note:"إجازة سنوية" },
+    ] }, // حسين باصي
+    u800516: { balance: 50, history: [] }, // نيل مارتن رينولدز — لا توجد طلبات إجازة حديثة مرفوعة
+    u800528: { balance: 11, history: [
+      { from:"2026-04-26", to:"2026-04-28", days:3, note:"زيارة مختبرات رابغ" },
+      { from:"2026-05-05", to:"2026-05-06", days:2, note:"زيارة مختبرات رابغ" },
+    ] }, // أوغ بريدوم
+    u800514: { balance: -6, history: [] }, // أسرار — مستقيل بتاريخ 2026-07-31، الرصيد لا يُحدَّث بعد هذا التاريخ
+    u800520: { balance: 20, history: [] }, // عبدالرحمن مجدي — الرصيد بالماستر شيت أحدث من 19 إبريل بالفعل
+    u800525: { balance: 31, history: [ { from:"2026-08-09", to:"2026-08-27", days:19, note:"إجازة سنوية" } ] }, // نور بنت حاتم البشر
+  };
+  let changed = false;
+  Object.entries(leaveData).forEach(([employeeId, def])=>{
+    const d = state.documents.find(x=>x.employeeId===employeeId);
+    if(!d) return;
+    if(d.leaveSnapshotDate !== SNAPSHOT_DATE || d.leaveSnapshotBalance !== def.balance){
+      d.leaveSnapshotDate = SNAPSHOT_DATE;
+      d.leaveSnapshotBalance = def.balance;
+      changed = true;
+    }
+    if(!d.leaveHistory){
+      d.leaveHistory = def.history;
+      changed = true;
+    }
+  });
+  return changed;
+}
+
+/* حساب رصيد الإجازة الحالي وحالة الخبير (في إجازة الآن؟ متى يعود؟) بالاعتماد على تاريخ المباشرة ولقطة الرصيد وسجل الإجازات.
+   يُعاد الاحتساب تلقائيًا في كل عرض بحيث يضيف 25 يومًا جديدًا تلقائيًا عند كل مرور بذكرى سنوية للمباشرة (طالما العقد ساري ولم يُستقل). */
+function computeExpertLeave(d){
+  if(!d || !d.joiningDate || !d.leaveSnapshotDate) return null;
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  const isResigned = !!d.resignationDate && d.resignationDate <= todayStr;
+
+  const history = d.leaveHistory || [];
+  const onLeaveEntry = history.find(h => h.from <= todayStr && todayStr <= h.to);
+  const upcoming = history
+    .filter(h => h.from > todayStr)
+    .sort((a,b)=> a.from < b.from ? -1 : 1)[0] || null;
+
+  if(isResigned){
+    return { inactive:true, resignationDate:d.resignationDate, onLeave:false, returnDate:null, upcoming:null, balance:null };
+  }
+
+  const snap = new Date(d.leaveSnapshotDate + "T00:00:00");
+  const join = new Date(d.joiningDate + "T00:00:00");
+
+  // عدد الذكريات السنوية الكاملة لتاريخ المباشرة (أول ذكرى = بعد سنة من المباشرة) التي تقع بعد تاريخ اللقطة وحتى اليوم
+  let entitlementYears = 0;
+  let cursor = new Date(join);
+  cursor.setFullYear(cursor.getFullYear()+1);
+  while(cursor <= today){
+    if(cursor > snap) entitlementYears++;
+    cursor.setFullYear(cursor.getFullYear()+1);
+  }
+
+  const usedSinceSnapshot = history
+    .filter(h => h.from > d.leaveSnapshotDate)
+    .reduce((sum,h)=> sum + (Number(h.days)||0), 0);
+
+  const balance = (Number(d.leaveSnapshotBalance)||0) + entitlementYears*25 - usedSinceSnapshot;
+
+  return {
+    inactive:false,
+    balance,
+    onLeave: !!onLeaveEntry,
+    returnDate: onLeaveEntry ? onLeaveEntry.to : null,
+    upcoming: upcoming ? { from:upcoming.from, to:upcoming.to } : null,
+  };
+}
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {
@@ -1668,6 +1775,19 @@ function renderDocuments(){
     const statusBadge = resigned
       ? `<span class="chip" style="background:#EFEFEF;color:var(--muted);">${icon('pause',11)} مستقيل</span>`
       : `<span class="chip" style="background:#EAF3F1;color:var(--green);">${icon('check',11)} نشط</span>`;
+    const leaveInfo = computeExpertLeave(d);
+    const leaveBadge = (!leaveInfo || leaveInfo.inactive) ? '' : (
+      leaveInfo.onLeave
+        ? `<span class="chip" style="background:#FCF3E4;color:var(--amber);">🏖️ في إجازة — يعود ${esc(leaveInfo.returnDate)}</span>`
+        : `<span class="chip" style="background:#EAF3F1;color:var(--green);">🟢 متاح (غير في إجازة)</span>`
+    );
+    const leaveUpcomingNote = (leaveInfo && !leaveInfo.inactive && !leaveInfo.onLeave && leaveInfo.upcoming)
+      ? `<div style="font-size:10.5px;color:var(--muted);margin-top:2px;">إجازة قادمة: ${esc(leaveInfo.upcoming.from)} → ${esc(leaveInfo.upcoming.to)}</div>` : '';
+    const leaveBalanceValue = (!leaveInfo)
+      ? '<span style="color:var(--muted);font-weight:400;">— لا تتوفر بيانات مباشرة/رصيد</span>'
+      : (leaveInfo.inactive
+          ? `<span style="color:var(--muted);font-weight:400;">مستقيل بتاريخ ${esc(leaveInfo.resignationDate)}</span>`
+          : `${leaveInfo.balance} يوم${leaveUpcomingNote}`);
     return `
     <div class="card" style="border-top:4px solid ${teamColor(d.team)};padding:16px 18px;font-size:12.5px;${resigned?'opacity:.7;':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
@@ -1684,6 +1804,7 @@ function renderDocuments(){
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
           ${statusBadge}
           ${alertBadge}
+          ${leaveBadge}
           <button class="linkbtn editDocumentBtn" data-id="${d.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button>
           <button class="linkbtn downloadDocumentBtn" data-id="${d.id}" style="color:var(--teal);">${icon('report',11)} تنزيل ملف الخبير</button>
         </div>
@@ -1697,6 +1818,7 @@ function renderDocuments(){
         ${field("مكان الميلاد", esc(d.birthPlace))}
         ${field("تاريخ المباشرة", esc(d.joiningDate))}
         ${resigned ? field("تاريخ الاستقالة", esc(d.resignationDate)) : ''}
+        ${field("رصيد الإجازات", leaveBalanceValue)}
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;padding:10px 0;border-top:1px dashed var(--line);">
@@ -2230,7 +2352,7 @@ async function openRestoreModal(){
 async function restoreFromBackup(fileId){
   if(!confirm("سيتم استبدال كل البيانات الحالية بهذي النسخة الاحتياطية. سنأخذ نسخة من وضعك الحالي أولاً للأمان. هل تريد المتابعة؟")) return;
   try{
-    const currentPayload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
+    const currentPayload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
     await saveAutoBackupToDrive(currentPayload);
 
     const raw = await driveGetFileContent(fileId);
@@ -2248,7 +2370,7 @@ async function restoreFromBackup(fileId){
       passportScansApplied3: !!data.passportScansApplied3, passportScansApplied4: !!data.passportScansApplied4, passportScansApplied5: !!data.passportScansApplied5,
       amrAdded: !!data.amrAdded, imranAdded: !!data.imranAdded, joiningDatesApplied: !!data.joiningDatesApplied, hrBatch2Applied: !!data.hrBatch2Applied,
       chrisEastIdFixed: !!data.chrisEastIdFixed, friedrichAdded: !!data.friedrichAdded, nourBirthApplied: !!data.nourBirthApplied,
-      nikolayAdded: !!data.nikolayAdded, masterListApplied: !!data.masterListApplied, conflictsResolved: !!data.conflictsResolved, gradesApplied: !!data.gradesApplied,
+      nikolayAdded: !!data.nikolayAdded, masterListApplied: !!data.masterListApplied, conflictsResolved: !!data.conflictsResolved, gradesApplied: !!data.gradesApplied, leaveTrackingApplied: !!data.leaveTrackingApplied,
       knowledgeDocs: data.knowledgeDocs || [], chatMessages: data.chatMessages || [], hrMemory: data.hrMemory || {},
     });
     closeModal();

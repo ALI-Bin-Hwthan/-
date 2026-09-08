@@ -1783,11 +1783,15 @@ function renderDocuments(){
     );
     const leaveUpcomingNote = (leaveInfo && !leaveInfo.inactive && !leaveInfo.onLeave && leaveInfo.upcoming)
       ? `<div style="font-size:10.5px;color:var(--muted);margin-top:2px;">إجازة قادمة: ${esc(leaveInfo.upcoming.from)} → ${esc(leaveInfo.upcoming.to)}</div>` : '';
+    const leaveFileLink = d.leaveFileUrl
+      ? `<a href="${d.leaveFileUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;color:var(--teal);font-size:10px;font-weight:600;margin-top:3px;">${icon('card',9)} عرض ملف الإجازة</a>`
+      : '';
     const leaveBalanceValue = (!leaveInfo)
       ? '<span style="color:var(--muted);font-weight:400;">— لا تتوفر بيانات مباشرة/رصيد</span>'
       : (leaveInfo.inactive
           ? `<span style="color:var(--muted);font-weight:400;">مستقيل بتاريخ ${esc(leaveInfo.resignationDate)}</span>`
           : `${leaveInfo.balance} يوم${leaveUpcomingNote}`);
+    const leaveBalanceCell = `<div>${leaveBalanceValue}${leaveFileLink?`<div>${leaveFileLink}</div>`:''}</div>`;
     return `
     <div class="card" style="border-top:4px solid ${teamColor(d.team)};padding:16px 18px;font-size:12.5px;${resigned?'opacity:.7;':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px;flex-wrap:wrap;">
@@ -1818,7 +1822,7 @@ function renderDocuments(){
         ${field("مكان الميلاد", esc(d.birthPlace))}
         ${field("تاريخ المباشرة", esc(d.joiningDate))}
         ${resigned ? field("تاريخ الاستقالة", esc(d.resignationDate)) : ''}
-        ${field("رصيد الإجازات", leaveBalanceValue)}
+        ${field("رصيد الإجازات", leaveBalanceCell)}
       </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;padding:10px 0;border-top:1px dashed var(--line);">
@@ -2243,6 +2247,7 @@ function openDocumentForm(existing){
       ${inputRow("مكان الميلاد", `<input type="text" id="d_birthPlace" value="${esc(existing?.birthPlace||'')}">`, true)}
       ${inputRow("تاريخ المباشرة", `<input type="date" id="d_joiningDate" value="${existing?.joiningDate||''}">`)}
       ${inputRow("تاريخ الاستقالة (إن وجد)", `<input type="date" id="d_resignationDate" value="${existing?.resignationDate||''}">`)}
+      ${inputRow("رفع ملف الإجازة (نموذج الطلب)", `<input type="file" id="d_leaveFile" accept=".pdf,image/*">${fileStatus(existing?.leaveFileUrl,'ملف إجازة')}`, true)}
       ${inputRow("رقم الإقامة", `<input type="text" id="d_iqamaNo" value="${esc(existing?.iqamaNo||'')}">`)}
       ${inputRow("تاريخ انتهاء الإقامة", `<input type="date" id="d_iqamaExpiry" value="${existing?.iqamaExpiry||''}">`)}
       ${inputRow("رفع صورة/PDF الإقامة", `<input type="file" id="d_iqamaFile" accept=".pdf,image/*">${fileStatus(existing?.iqamaFileUrl,'ملف إقامة')}`, true)}
@@ -2281,12 +2286,14 @@ function openDocumentForm(existing){
       iqamaFileUrl: existing?.iqamaFileUrl || null,
       passportFileUrl: existing?.passportFileUrl || null,
       workCardFileUrl: existing?.workCardFileUrl || null,
+      leaveFileUrl: existing?.leaveFileUrl || null,
     };
 
     const uploads = [
       { input: document.getElementById('d_iqamaFile'), key: 'iqamaFileUrl', label: 'الإقامة' },
       { input: document.getElementById('d_passportFile'), key: 'passportFileUrl', label: 'الجواز' },
       { input: document.getElementById('d_workCardFile'), key: 'workCardFileUrl', label: 'بطاقة العمل' },
+      { input: document.getElementById('d_leaveFile'), key: 'leaveFileUrl', label: 'الإجازة' },
     ].filter(u => u.input && u.input.files && u.input.files[0]);
 
     if(uploads.length){
@@ -2537,6 +2544,7 @@ function buildExpertFileHTML(d){
         ${row("رقم الجواز", esc(d.passportNo))}
         ${dateRow("تاريخ انتهاء الجواز", d.passportExpiry, d.passportFileUrl)}
         ${dateRow("تاريخ انتهاء بطاقة العمل", d.workCardExpiry, d.workCardFileUrl)}
+        ${(()=>{ const li = computeExpertLeave(d); if(!li) return ''; const val = li.inactive ? `مستقيل بتاريخ ${li.resignationDate}` : `${li.balance} يوم${li.onLeave?` — في إجازة حتى ${li.returnDate}`:''}`; return row("رصيد الإجازات", `${val}${d.leaveFileUrl?` — <a href="${d.leaveFileUrl}" target="_blank">عرض ملف الإجازة</a>`:''}`); })()}
         ${d.notes ? row("ملاحظات", esc(d.notes)) : ''}
       </table>
     </div>`;

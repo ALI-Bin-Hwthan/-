@@ -162,7 +162,6 @@ function getSeedData(){
       { id: "t3", name: "إدارة الاستدامة" },
       { id: "t4", name: "إدارة الطاقة النظيفة والمتجددة" },
       { id: "t5", name: "إدارة المختبرات المركزية" },
-      { id: "t6", name: "الإدارة العامة للمحطات التجريبية" },
     ],
     tasks: [
       { id:"r1", key:"K-0512", team:"t1", task:"تحليل بيانات الاستبيان الأولي", type:"بحثية", R:"سارة", A:"أحمد", C:"علي", I:"محمد", status:"progress", dueDate:"2026-06-18", notes:"", linkedCorrId:"c1", linkedFacilityId:null },
@@ -180,17 +179,16 @@ function getSeedData(){
     facilities: [
       { id:"f1", key:"L-101", kind:"مختبر", name:"مختبر تحليل العمليات التشغيلية", team:"t1", location:"المبنى A — الدور 2", status:"active", capacity:"6 باحثين", notes:"" },
       { id:"f2", key:"L-102", kind:"مختبر", name:"مختبر إعادة التدوير والمواد", team:"t2", location:"المبنى B — الدور 1", status:"active", capacity:"8 باحثين", notes:"" },
-      { id:"f3", key:"S-201", kind:"محطة تجريبية", name:"محطة قياس الأثر البيئي", team:"t3", location:"الموقع الميداني — الشمال", status:"maintenance", capacity:"—", notes:"صيانة دورية لأجهزة القياس" },
-      { id:"f4", key:"S-202", kind:"محطة تجريبية", name:"محطة الطاقة الشمسية التجريبية", team:"t4", location:"الموقع الميداني — الجنوب", status:"active", capacity:"منشأة 50kW", notes:"" },
       { id:"f5", key:"L-103", kind:"مختبر", name:"مختبر نمذجة كفاءة الطاقة", team:"t4", location:"المبنى A — الدور 3", status:"idle", capacity:"4 باحثين", notes:"بانتظار تجديد الترخيص" },
     ],
     documents: [],
+    visitors: [],
     idCounter: 100,
   };
 }
 
 const state = {
-  teams: [], tasks: [], corr: [], facilities: [], documents: [],
+  teams: [], tasks: [], corr: [], facilities: [], documents: [], visitors: [],
   tab: "dashboard",
   activeTeam: "all",
   docsFilter: "all",
@@ -226,6 +224,7 @@ const state = {
   conflictsResolved: false,
   gradesApplied: false,
   leaveTrackingApplied: false,
+  trialStationsRemoved: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -430,6 +429,7 @@ async function loadDataFromDrive(){
       const data = JSON.parse(raw);
       state.teams = data.teams; state.tasks = data.tasks; state.corr = data.corr; state.facilities = data.facilities;
       state.documents = data.documents || [];
+      state.visitors = data.visitors || [];
       idCounter = data.idCounter || 100;
       state.trialCleared = !!data.trialCleared;
       state.expertsImported = !!data.expertsImported;
@@ -458,11 +458,13 @@ async function loadDataFromDrive(){
       state.conflictsResolved = !!data.conflictsResolved;
       state.gradesApplied = !!data.gradesApplied;
       state.leaveTrackingApplied = !!data.leaveTrackingApplied;
+      state.trialStationsRemoved = !!data.trialStationsRemoved;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
       state.teams = seed.teams; state.tasks = seed.tasks; state.corr = seed.corr; state.facilities = seed.facilities;
       state.documents = seed.documents;
+      state.visitors = seed.visitors;
       idCounter = seed.idCounter;
       state.saveStatus = "لا يوجد ملف سابق — جارٍ إنشاء أول نسخة بـ Drive...";
     }
@@ -470,6 +472,7 @@ async function loadDataFromDrive(){
     const seed = getSeedData();
     state.teams = seed.teams; state.tasks = seed.tasks; state.corr = seed.corr; state.facilities = seed.facilities;
     state.documents = seed.documents;
+    state.visitors = seed.visitors;
     idCounter = seed.idCounter;
     state.saveStatus = "تعذّر الاتصال بـ Drive: " + e.message;
   }
@@ -590,16 +593,20 @@ async function loadDataFromDrive(){
     state.leaveTrackingApplied = true;
     needsSave = true;
   }
+  if(!state.trialStationsRemoved){
+    removeTrialStations();
+    state.trialStationsRemoved = true;
+    needsSave = true;
+  }
   if(needsSave) await saveDataToDrive();
   state.ready = true;
   render();
 }
 
-/* يضيف إدارتي المختبرات المركزية والمحطات التجريبية إذا لم تكونا موجودتين — آمن للتشغيل المتكرر */
+/* يضيف إدارة المختبرات المركزية إذا لم تكن موجودة — آمن للتشغيل المتكرر */
 function ensureBaselineTeams(){
   const toAdd = [
     { id: "t5", name: "إدارة المختبرات المركزية" },
-    { id: "t6", name: "الإدارة العامة للمحطات التجريبية" },
   ];
   let changed = false;
   toAdd.forEach(def=>{
@@ -1147,6 +1154,13 @@ function applyGrades(){
    ونماذج طلبات الإجازة الفعلية المرفوعة (من/إلى/عدد الأيام) — يعمل مرة واحدة بفضل علامة leaveTrackingApplied.
    المنطق: الرصيد = رصيد اللقطة (19 إبريل 2026) + (25 يوم × كل تاريخ مباشرة سنوي يمر بعد اللقطة وحتى اليوم)
            − إجمالي أيام الإجازات المسجلة بعد تاريخ اللقطة. */
+/* حذف أي بيانات "محطات تجريبية" متبقية من الحساب الفعلي (الميزة أُلغيت بالكامل) — يعمل مرة واحدة بفضل trialStationsRemoved */
+function removeTrialStations(){
+  const before = state.facilities.length;
+  state.facilities = state.facilities.filter(f => f.kind !== "محطة تجريبية");
+  return state.facilities.length !== before;
+}
+
 function applyExpertLeaveTracking(){
   const SNAPSHOT_DATE = "2026-04-19";
   const leaveData = {
@@ -1254,7 +1268,7 @@ function computeExpertLeave(d){
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, visitors: state.visitors, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, trialStationsRemoved: state.trialStationsRemoved, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {
@@ -1297,7 +1311,7 @@ function render(){
       ${state.tab==='raci' ? renderRaci() : ''}
       ${state.tab==='corr' ? renderCorr() : ''}
       ${state.tab==='labs' ? renderLabs() : ''}
-      ${state.tab==='stations' ? renderStations() : ''}
+      ${state.tab==='visitors' ? renderVisitors() : ''}
       ${state.tab==='teams' ? renderTeams() : ''}
       ${state.tab==='documents' ? renderDocuments() : ''}
       ${state.tab==='copilot' ? renderCopilot() : ''}
@@ -1333,7 +1347,7 @@ function renderHeader(){
     ["raci","مهام RACI","tasks"],
     ["corr","التراسل","send"],
     ["labs","المختبرات","flask"],
-    ["stations","المحطات التجريبية","radio"],
+    ["visitors","زوار الواحة","pin"],
     ["teams","الفرق","users"],
     ["documents","الوثائق","card"],
     ["copilot","المساعد الذكي","chat"],
@@ -1404,7 +1418,6 @@ function renderDashboard(){
   const facPool = state.activeTeam==='all' ? state.facilities : state.facilities.filter(f=>f.team===state.activeTeam);
   const facStats = {
     labs: facPool.filter(f=>f.kind==='مختبر').length,
-    stations: facPool.filter(f=>f.kind==='محطة تجريبية').length,
     active: facPool.filter(f=>f.status==='active').length,
     maintenance: facPool.filter(f=>f.status==='maintenance').length,
     idle: facPool.filter(f=>f.status==='idle').length,
@@ -1479,10 +1492,9 @@ function renderDashboard(){
       </div>
     </div>
     <div class="card" style="padding:18px;">
-      <div class="disp" style="font-weight:700;font-size:15px;margin-bottom:14px;">المختبرات والمحطات التجريبية</div>
+      <div class="disp" style="font-weight:700;font-size:15px;margin-bottom:14px;">المختبرات</div>
       <div style="display:flex;gap:14px;flex-wrap:wrap;">
         ${statCard("مختبرات", facStats.labs, "var(--teal)", "flask")}
-        ${statCard("محطات تجريبية", facStats.stations, "var(--blue)", "radio")}
         ${statCard("قيد التشغيل", facStats.active, "var(--green)", "check")}
         ${statCard("تحت الصيانة", facStats.maintenance, "var(--amber)", "wrench")}
         ${statCard("متوقف", facStats.idle, "var(--muted)", "pause")}
@@ -1522,7 +1534,7 @@ function renderRaci(){
         ${overdue?`<div style="color:var(--red);font-size:11px;font-weight:700;margin-top:2px;">متأخرة ${daysFrom(t.dueDate)} يوم</div>`:''}
       </td>
       <td>${lc?`<button class="linkbtn goto" data-tab="corr" style="color:var(--teal);">${icon('link',11)} ${lc.key}</button>`:`<span style="color:var(--muted);font-size:11.5px;">—</span>`}</td>
-      <td>${lf?`<button class="linkbtn goto" data-tab="${lf.kind==='مختبر'?'labs':'stations'}" style="color:var(--blue);">${icon(lf.kind==='مختبر'?'flask':'radio',11)} ${lf.key}</button>`:`<span style="color:var(--muted);font-size:11.5px;">—</span>`}</td>
+      <td>${lf?`<button class="linkbtn goto" data-tab="labs" style="color:var(--blue);">${icon('flask',11)} ${lf.key}</button>`:`<span style="color:var(--muted);font-size:11.5px;">—</span>`}</td>
       <td><button class="linkbtn editTaskBtn" data-id="${t.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button></td>
     </tr>`;
   }).join("") || `<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted);">لا توجد مهام مطابقة</td></tr>`;
@@ -1612,8 +1624,6 @@ function renderFacilitiesByKind(kind, tabId, addLabel, titleLabel, iconName){
   `;
 }
 function renderLabs(){ return renderFacilitiesByKind("مختبر", "labs", "إضافة مختبر", "مختبرات", "flask"); }
-function renderStations(){ return renderFacilitiesByKind("محطة تجريبية", "stations", "إضافة محطة تجريبية", "محطات", "radio"); }
-
 function renderTeams(){
   const cards = state.teams.map((tm,i)=>{
     const pool = state.tasks.filter(t=>t.team===tm.id);
@@ -1865,6 +1875,253 @@ function renderDocuments(){
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;">
       ${cards}
     </div>`;
+}
+
+/* ---------------- زوار الواحة ---------------- */
+function visitorDateBadge(dateStr){
+  if(!dateStr) return '';
+  const todayStr = new Date().toISOString().slice(0,10);
+  if(dateStr > todayStr) return `<span class="chip" style="background:#EAF1FC;color:var(--blue);">${icon('clock',11)} زيارة قادمة</span>`;
+  if(dateStr === todayStr) return `<span class="chip" style="background:#FCF3E4;color:var(--amber);">${icon('alert',11)} زيارة اليوم</span>`;
+  return `<span class="chip" style="background:#EFEFEF;color:var(--muted);">${icon('check',11)} تمت الزيارة</span>`;
+}
+
+function renderVisitors(){
+  const pool = state.visitors || [];
+  const q = (state.search||'').trim();
+  const items = pool.filter(v =>
+    (v.orgName||'').includes(q) || (v.email||'').includes(q) || (v.phone||'').includes(q) ||
+    (v.visitorsInfo||'').includes(q) || (v.purpose||'').includes(q)
+  ).sort((a,b) => (b.visitDate||'').localeCompare(a.visitDate||''));
+
+  const todayStr = new Date().toISOString().slice(0,10);
+  const stats = {
+    total: pool.length,
+    upcoming: pool.filter(v => v.visitDate && v.visitDate > todayStr).length,
+    today: pool.filter(v => v.visitDate === todayStr).length,
+    past: pool.filter(v => v.visitDate && v.visitDate < todayStr).length,
+  };
+
+  const field = (label, value) => `
+    <div>
+      <div style="font-size:10px;color:var(--muted);font-weight:600;">${label}</div>
+      <div style="font-size:12.5px;font-weight:600;margin-top:1px;">${value || '<span style="color:var(--muted);font-weight:400;">—</span>'}</div>
+    </div>`;
+
+  const cards = items.map(v=>{
+    const idCount = (v.idFiles||[]).length;
+    const idsBtn = `<button class="linkbtn manageVisitorIdsBtn" data-id="${v.id}" style="color:var(--teal);font-size:10px;margin-top:3px;padding:0;">📎 هويات الزوار${idCount?` (${idCount})`:''}</button>`;
+    return `
+    <div class="card" style="border-top:4px solid var(--teal);padding:16px 18px;font-size:12.5px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+        <div>
+          <div style="font-weight:800;font-size:14.5px;">${esc(v.orgName)||'<span style="color:var(--muted);">بدون اسم جهة</span>'}</div>
+          <div style="color:var(--muted);font-size:11px;margin-top:2px;">${esc(v.purpose)||''}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          ${visitorDateBadge(v.visitDate)}
+          <button class="linkbtn editVisitorBtn" data-id="${v.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button>
+          <button class="linkbtn deleteVisitorBtn" data-id="${v.id}" style="color:var(--red);">${icon('x',11)} حذف</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px 16px;padding-top:10px;border-top:1px solid var(--line);">
+        ${field("البريد الإلكتروني", esc(v.email))}
+        ${field("رقم التواصل", esc(v.phone))}
+        ${field("تاريخ الزيارة", esc(v.visitDate))}
+        ${field("بيانات الزوار", esc(v.visitorsInfo))}
+      </div>
+      <div style="margin-top:8px;">${idsBtn}</div>
+    </div>`;
+  }).join("") || `<div class="card" style="padding:30px;text-align:center;color:var(--muted);">لا توجد زيارات مسجلة</div>`;
+
+  return `
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;">
+      ${docStatCard("إجمالي الزيارات", stats.total, "var(--navy2)", "pin")}
+      ${docStatCard("زيارات قادمة", stats.upcoming, "var(--blue)", "clock")}
+      ${docStatCard("زيارة اليوم", stats.today, "var(--amber)", "alert")}
+      ${docStatCard("زيارات سابقة", stats.past, "var(--muted)", "check")}
+    </div>
+    ${toolbar("إضافة زيارة","addVisitorBtn")}
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin:-8px 0 16px;">
+      <button id="importVisitorsBtn" style="display:flex;align-items:center;gap:6px;background:#fff;color:var(--teal);border:1px solid var(--line);padding:8px 14px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('report',13)} استيراد من إكسل</button>
+      <button id="downloadVisitorsTemplateBtn" style="display:flex;align-items:center;gap:6px;background:#fff;color:var(--muted);border:1px solid var(--line);padding:8px 14px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;">${icon('report',13)} تنزيل نموذج إكسل</button>
+      <input type="file" id="importVisitorsFile" accept=".xlsx,.xls" style="display:none;">
+    </div>
+    <div id="importVisitorsMsg" style="font-size:12px;color:var(--muted);margin:-10px 0 14px;min-height:16px;"></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;">
+      ${cards}
+    </div>`;
+}
+
+function openVisitorForm(existing){
+  const isEdit = !!existing;
+  const body = `
+    <div class="fgrid">
+      ${inputRow("اسم الجهة الزائرة", `<input type="text" id="v_orgName" value="${esc(existing?.orgName||'')}">`, true)}
+      ${inputRow("البريد الإلكتروني", `<input type="email" id="v_email" value="${esc(existing?.email||'')}">`)}
+      ${inputRow("رقم التواصل", `<input type="text" id="v_phone" value="${esc(existing?.phone||'')}">`)}
+      ${inputRow("تاريخ الزيارة", `<input type="date" id="v_visitDate" value="${existing?.visitDate||''}">`)}
+      ${inputRow("الغرض من الزيارة", `<input type="text" id="v_purpose" value="${esc(existing?.purpose||'')}">`, true)}
+      ${inputRow("بيانات الزوار (الأسماء/المناصب)", `<textarea id="v_visitorsInfo" rows="3">${esc(existing?.visitorsInfo||'')}</textarea>`, true)}
+    </div>`;
+  openModal(isEdit ? "تعديل زيارة" : "إضافة زيارة", body, ()=>{
+    const orgName = document.getElementById('v_orgName').value.trim();
+    if(!orgName) return;
+    const record = {
+      orgName,
+      email: document.getElementById('v_email').value.trim(),
+      phone: document.getElementById('v_phone').value.trim(),
+      visitDate: document.getElementById('v_visitDate').value,
+      purpose: document.getElementById('v_purpose').value.trim(),
+      visitorsInfo: document.getElementById('v_visitorsInfo').value.trim(),
+    };
+    if(isEdit){
+      const v = state.visitors.find(x=>x.id===existing.id);
+      if(v) Object.assign(v, record);
+    } else {
+      state.visitors.push({ id: nextId('v'), idFiles: [], ...record });
+    }
+    closeModal(); render(); saveDataToDrive();
+  });
+}
+
+/* نافذة إدارة هويات الزوار — ملف مستقل لكل هوية (يمكن إضافة أكثر من زائر وهوية للزيارة الواحدة) */
+function openVisitorIdsModal(visitId){
+  const v = state.visitors.find(x=>x.id===visitId);
+  if(!v) return;
+  if(!v.idFiles) v.idFiles = [];
+
+  function bodyHtml(){
+    const rows = v.idFiles.map((idf, idx) => `
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed var(--line);flex-wrap:wrap;">
+        <div style="flex:1;min-width:140px;font-size:12.5px;">${esc(idf.name)||'بدون اسم'}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          ${idf.fileUrl ? `<a href="${idf.fileUrl}" target="_blank" rel="noopener" style="font-size:11px;color:var(--teal);font-weight:600;">📎 عرض الهوية</a>` : `<span style="font-size:11px;color:var(--muted);">لا يوجد ملف</span>`}
+          <input type="file" accept=".pdf,image/*" data-id-upload="${idx}" style="font-size:10.5px;max-width:120px;">
+          <button data-id-delete="${idx}" style="border:none;background:none;color:var(--red);cursor:pointer;font-size:11.5px;">حذف</button>
+        </div>
+      </div>`).join("") || `<div style="color:var(--muted);font-size:12.5px;padding:10px 0;">لا توجد هويات مضافة بعد.</div>`;
+
+    return `
+      <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">${esc(v.orgName)} — أضف اسم الزائر وارفع صورة هويته/إقامته.</div>
+      <div id="idsRowsHost">${rows}</div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px;">إضافة هوية جديدة</div>
+        <div class="fgrid">
+          ${inputRow("اسم الزائر", `<input type="text" id="idf_name" placeholder="مثال: محمد أحمد">`, true)}
+          ${inputRow("صورة/PDF الهوية", `<input type="file" id="idf_file" accept=".pdf,image/*">`, true)}
+        </div>
+        <button id="idf_addBtn" style="margin-top:8px;padding:7px 16px;border-radius:8px;border:none;background:var(--teal);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">+ إضافة هوية</button>
+      </div>
+      <div id="idsModalMsg" style="font-size:11.5px;color:var(--muted);margin-top:8px;min-height:14px;"></div>`;
+  }
+
+  function open(){
+    openModal(`هويات زوار — ${v.orgName}`, bodyHtml(), ()=>{ closeModal(); render(); });
+    const saveBtn = document.getElementById('modalSave');
+    if(saveBtn) saveBtn.textContent = 'إغلاق';
+    const cancelBtn = document.getElementById('modalCancel');
+    if(cancelBtn) cancelBtn.addEventListener('click', render);
+
+    document.querySelectorAll('[data-id-upload]').forEach(inp=>{
+      inp.addEventListener('change', async (e)=>{
+        const idx = Number(inp.getAttribute('data-id-upload'));
+        const file = e.target.files[0];
+        if(!file) return;
+        const msg = document.getElementById('idsModalMsg');
+        if(msg) msg.textContent = 'جارٍ رفع الملف...';
+        try{
+          const entry = v.idFiles[idx];
+          const uploaded = await driveUploadFile(file, `${v.orgName} — هوية ${entry.name||idx+1}`);
+          v.idFiles[idx].fileUrl = uploaded.url;
+          await saveDataToDrive();
+          open();
+        } catch(err){
+          if(msg) msg.textContent = 'تعذّر رفع الملف — تأكّد من اتصالك وحاول مرة أخرى';
+        }
+      });
+    });
+    document.querySelectorAll('[data-id-delete]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const idx = Number(btn.getAttribute('data-id-delete'));
+        v.idFiles.splice(idx,1);
+        await saveDataToDrive();
+        open();
+      });
+    });
+    const addBtn = document.getElementById('idf_addBtn');
+    if(addBtn) addBtn.addEventListener('click', async ()=>{
+      const name = document.getElementById('idf_name').value.trim();
+      const fileInput = document.getElementById('idf_file');
+      const msg = document.getElementById('idsModalMsg');
+      const entry = { name };
+      if(fileInput && fileInput.files && fileInput.files[0]){
+        if(msg) msg.textContent = 'جارٍ رفع الملف...';
+        try{
+          const uploaded = await driveUploadFile(fileInput.files[0], `${v.orgName} — هوية ${name||''}`);
+          entry.fileUrl = uploaded.url;
+        } catch(err){
+          if(msg) msg.textContent = 'تعذّر رفع الملف — حاول مرة أخرى';
+          return;
+        }
+      }
+      v.idFiles.push(entry);
+      await saveDataToDrive();
+      open();
+    });
+  }
+  open();
+}
+
+const VISITOR_FIELD_MAP = {
+  "اسم الجهة الزائرة": "orgName",
+  "البريد الإلكتروني": "email",
+  "رقم التواصل": "phone",
+  "تاريخ الزيارة": "visitDate",
+  "الغرض من الزيارة": "purpose",
+  "بيانات الزوار": "visitorsInfo",
+};
+const VISITOR_DATE_FIELDS = new Set(["visitDate"]);
+
+function downloadVisitorsTemplate(){
+  const headers = Object.keys(VISITOR_FIELD_MAP);
+  const rows = (state.visitors||[]).map(v => headers.map(h => v[VISITOR_FIELD_MAP[h]] || ''));
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = headers.map(()=>({ wch: 22 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "زوار الواحة");
+  XLSX.writeFile(wb, "نموذج_زوار_الواحة.xlsx");
+}
+
+function handleVisitorsImportFile(file){
+  const msg = document.getElementById('importVisitorsMsg');
+  if(msg) msg.textContent = "جارٍ قراءة الملف...";
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      let added = 0, skipped = 0;
+      rows.forEach(row=>{
+        const rec = {};
+        Object.entries(VISITOR_FIELD_MAP).forEach(([ar, key])=>{
+          let v = row[ar];
+          v = VISITOR_DATE_FIELDS.has(key) ? normalizeImportDate(v) : ((v===null||v===undefined) ? '' : String(v).trim());
+          rec[key] = v;
+        });
+        if(!rec.orgName){ skipped++; return; }
+        state.visitors.push({ id: nextId('v'), idFiles: [], ...rec });
+        added++;
+      });
+      if(msg) msg.textContent = `تم الاستيراد: ${added} زيارة جديدة${skipped?`، ${skipped} صف متجاهل (بدون اسم جهة)`:''}`;
+      render();
+      saveDataToDrive();
+    } catch(err){
+      if(msg) msg.textContent = "تعذّرت قراءة الملف — تأكد أنه ملف إكسل صالح بنفس تنسيق النموذج";
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
 /* ---------------- المساعد الذكي (Copilot) ---------------- */
@@ -2462,7 +2719,7 @@ async function openRestoreModal(){
 async function restoreFromBackup(fileId){
   if(!confirm("سيتم استبدال كل البيانات الحالية بهذي النسخة الاحتياطية. سنأخذ نسخة من وضعك الحالي أولاً للأمان. هل تريد المتابعة؟")) return;
   try{
-    const currentPayload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
+    const currentPayload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, visitors: state.visitors, idCounter, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, trialStationsRemoved: state.trialStationsRemoved, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
     await saveAutoBackupToDrive(currentPayload);
 
     const raw = await driveGetFileContent(fileId);
@@ -2472,6 +2729,7 @@ async function restoreFromBackup(fileId){
     state.corr = data.corr || [];
     state.facilities = data.facilities || [];
     state.documents = data.documents || [];
+    state.visitors = data.visitors || [];
     idCounter = data.idCounter || idCounter;
     Object.assign(state, {
       expertsImported: !!data.expertsImported, passportScansApplied: !!data.passportScansApplied,
@@ -2712,12 +2970,10 @@ function showBackupModal(text, stamp, autoDownloadWorked){
 function openTaskForm(existing){
   const isEdit = !!existing;
   const labs = state.facilities.filter(f=>f.kind==='مختبر');
-  const stations = state.facilities.filter(f=>f.kind==='محطة تجريبية');
   const selectedFacility = existing?.linkedFacilityId || "";
   const facilityOptionsHtml = () => `
     <option value="">بدون ربط</option>
     ${labs.length ? `<optgroup label="المختبرات">${labs.map(fa=>`<option value="${fa.id}" ${fa.id===selectedFacility?'selected':''}>${fa.key} — ${esc(fa.name)}</option>`).join("")}</optgroup>` : ''}
-    ${stations.length ? `<optgroup label="المحطات التجريبية">${stations.map(fa=>`<option value="${fa.id}" ${fa.id===selectedFacility?'selected':''}>${fa.key} — ${esc(fa.name)}</option>`).join("")}</optgroup>` : ''}
   `;
   const initialTeam = existing?.team || state.teams[0].id;
   const body = `
@@ -2836,7 +3092,7 @@ function openFacilityForm(presetKind, existing){
   const body = `
     <div class="fgrid">
       ${inputRow("رقم المرجع (اختياري)", `<input type="text" id="fac_key" placeholder="يُولَّد تلقائيًا" value="${esc(existing?.key||'')}" ${isEdit?'disabled':''}>`)}
-      ${inputRow("النوع", `<select id="fac_kind"><option ${kind==='مختبر'?'selected':''}>مختبر</option><option ${kind==='محطة تجريبية'?'selected':''}>محطة تجريبية</option></select>`)}
+      ${inputRow("النوع", `<select id="fac_kind"><option selected>مختبر</option></select>`)}
       ${inputRow("الاسم", `<input type="text" id="fac_name" value="${esc(existing?.name||'')}">`, true)}
       ${inputRow("الفريق المسؤول", `<select id="fac_team">${teamOptions(existing?.team || state.teams[0].id)}</select>`)}
       ${inputRow("الحالة", `<select id="fac_status">${statusOptions(LAB_STATUS, existing?.status || 'active')}</select>`)}
@@ -2847,7 +3103,7 @@ function openFacilityForm(presetKind, existing){
     ${isEdit ? '' : `<label style="display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13px;cursor:pointer;">
       <input type="checkbox" id="fac_createTask"> إنشاء مهمة RACI مرتبطة تلقائيًا (صيانة / متابعة تشغيل)
     </label>`}`;
-  openModal(isEdit ? "تعديل " + (kind === "مختبر" ? "مختبر" : "محطة تجريبية") : (kind === "مختبر" ? "إضافة مختبر" : "إضافة محطة تجريبية"), body, ()=>{
+  openModal(isEdit ? "تعديل مختبر" : "إضافة مختبر", body, ()=>{
     const name = document.getElementById('fac_name').value.trim();
     if(!name) return;
     const status = document.getElementById('fac_status').value;
@@ -2900,7 +3156,6 @@ function bindEvents(){
   const addTaskBtn = document.getElementById('addTaskBtn'); if(addTaskBtn) addTaskBtn.addEventListener('click', ()=>openTaskForm());
   const addCorrBtn = document.getElementById('addCorrBtn'); if(addCorrBtn) addCorrBtn.addEventListener('click', ()=>openCorrForm());
   const addLabBtn = document.getElementById('addFacilityBtn_labs'); if(addLabBtn) addLabBtn.addEventListener('click', ()=>openFacilityForm("مختبر"));
-  const addStationBtn = document.getElementById('addFacilityBtn_stations'); if(addStationBtn) addStationBtn.addEventListener('click', ()=>openFacilityForm("محطة تجريبية"));
   root.querySelectorAll('.editTaskBtn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const t = state.tasks.find(x=>x.id===btn.getAttribute('data-id'));
@@ -2953,6 +3208,37 @@ function bindEvents(){
     });
   });
 
+  const addVisitorBtn = document.getElementById('addVisitorBtn');
+  if(addVisitorBtn) addVisitorBtn.addEventListener('click', ()=>openVisitorForm());
+  root.querySelectorAll('.editVisitorBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const v = state.visitors.find(x=>x.id===btn.getAttribute('data-id'));
+      if(v) openVisitorForm(v);
+    });
+  });
+  root.querySelectorAll('.deleteVisitorBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-id');
+      state.visitors = state.visitors.filter(x=>x.id!==id);
+      render(); saveDataToDrive();
+    });
+  });
+  root.querySelectorAll('.manageVisitorIdsBtn').forEach(btn=>{
+    btn.addEventListener('click', ()=> openVisitorIdsModal(btn.getAttribute('data-id')));
+  });
+  const importVisitorsBtn = document.getElementById('importVisitorsBtn');
+  const importVisitorsFile = document.getElementById('importVisitorsFile');
+  if(importVisitorsBtn && importVisitorsFile){
+    importVisitorsBtn.addEventListener('click', ()=> importVisitorsFile.click());
+    importVisitorsFile.addEventListener('change', (e)=>{
+      const file = e.target.files[0];
+      if(file) handleVisitorsImportFile(file);
+      importVisitorsFile.value = '';
+    });
+  }
+  const downloadVisitorsTemplateBtn = document.getElementById('downloadVisitorsTemplateBtn');
+  if(downloadVisitorsTemplateBtn) downloadVisitorsTemplateBtn.addEventListener('click', downloadVisitorsTemplate);
+
   const reportBtn = document.getElementById('reportBtn');
   if(reportBtn) reportBtn.addEventListener('click', printReport);
   const signOutBtn = document.getElementById('signOutBtn');
@@ -2980,7 +3266,7 @@ function bindEvents(){
 
   const exportBtn = document.getElementById('exportBtn');
   if(exportBtn) exportBtn.addEventListener('click', ()=>{
-    const payload = { teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, idCounter, exportedAt: new Date().toISOString() };
+    const payload = { teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, visitors: state.visitors, idCounter, exportedAt: new Date().toISOString() };
     const text = JSON.stringify(payload, null, 2);
     const stamp = new Date().toISOString().slice(0,10);
 
@@ -3012,6 +3298,7 @@ function bindEvents(){
           if(!data.teams || !data.tasks || !data.corr || !data.facilities) throw new Error("ملف غير صالح");
           state.teams = data.teams; state.tasks = data.tasks; state.corr = data.corr; state.facilities = data.facilities;
           state.documents = data.documents || [];
+          state.visitors = data.visitors || [];
           idCounter = data.idCounter || idCounter;
           render(); saveDataToDrive();
         } catch(err){

@@ -1911,6 +1911,9 @@ function renderVisitors(){
   const cards = items.map(v=>{
     const idCount = (v.idFiles||[]).length;
     const idsBtn = `<button class="linkbtn manageVisitorIdsBtn" data-id="${v.id}" style="color:var(--teal);font-size:10px;margin-top:3px;padding:0;">📎 هويات الزوار${idCount?` (${idCount})`:''}</button>`;
+    const attachmentLink = v.attachmentFileUrl
+      ? `<a href="${v.attachmentFileUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;color:var(--teal);font-size:10px;font-weight:600;">${icon('card',9)} عرض مرفق الزيارة</a>`
+      : '';
     return `
     <div class="card" style="border-top:4px solid var(--teal);padding:16px 18px;font-size:12.5px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
@@ -1930,7 +1933,7 @@ function renderVisitors(){
         ${field("تاريخ الزيارة", esc(v.visitDate))}
         ${field("بيانات الزوار", esc(v.visitorsInfo))}
       </div>
-      <div style="margin-top:8px;">${idsBtn}</div>
+      <div style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">${idsBtn}${attachmentLink}</div>
     </div>`;
   }).join("") || `<div class="card" style="padding:30px;text-align:center;color:var(--muted);">لا توجد زيارات مسجلة</div>`;
 
@@ -1955,6 +1958,7 @@ function renderVisitors(){
 
 function openVisitorForm(existing){
   const isEdit = !!existing;
+  const fileStatus = (url, label) => url ? `<div style="font-size:11px;color:var(--teal);margin-top:4px;">📎 يوجد ${label} مرفق — اختر ملفًا جديدًا لاستبداله</div>` : '';
   const body = `
     <div class="fgrid">
       ${inputRow("اسم الجهة الزائرة", `<input type="text" id="v_orgName" value="${esc(existing?.orgName||'')}">`, true)}
@@ -1963,10 +1967,14 @@ function openVisitorForm(existing){
       ${inputRow("تاريخ الزيارة", `<input type="date" id="v_visitDate" value="${existing?.visitDate||''}">`)}
       ${inputRow("الغرض من الزيارة", `<input type="text" id="v_purpose" value="${esc(existing?.purpose||'')}">`, true)}
       ${inputRow("بيانات الزوار (الأسماء/المناصب)", `<textarea id="v_visitorsInfo" rows="3">${esc(existing?.visitorsInfo||'')}</textarea>`, true)}
-    </div>`;
-  openModal(isEdit ? "تعديل زيارة" : "إضافة زيارة", body, ()=>{
+      ${inputRow("رفع مرفق (خطاب الزيارة / التصريح / أي ملف)", `<input type="file" id="v_attachmentFile" accept=".pdf,image/*,.doc,.docx">${fileStatus(existing?.attachmentFileUrl,'ملف')}`, true)}
+    </div>
+    <div id="visitorUploadMsg" style="font-size:12px;color:var(--muted);margin-top:10px;min-height:16px;"></div>`;
+  openModal(isEdit ? "تعديل زيارة" : "إضافة زيارة", body, async ()=>{
     const orgName = document.getElementById('v_orgName').value.trim();
     if(!orgName) return;
+    const msg = document.getElementById('visitorUploadMsg');
+    const saveBtn = document.getElementById('modalSave');
     const record = {
       orgName,
       email: document.getElementById('v_email').value.trim(),
@@ -1974,7 +1982,21 @@ function openVisitorForm(existing){
       visitDate: document.getElementById('v_visitDate').value,
       purpose: document.getElementById('v_purpose').value.trim(),
       visitorsInfo: document.getElementById('v_visitorsInfo').value.trim(),
+      attachmentFileUrl: existing?.attachmentFileUrl || null,
     };
+    const fileInput = document.getElementById('v_attachmentFile');
+    if(fileInput && fileInput.files && fileInput.files[0]){
+      saveBtn.disabled = true;
+      msg.textContent = 'جارٍ رفع المرفق...';
+      try{
+        const uploaded = await driveUploadFile(fileInput.files[0], `${orgName} — مرفق زيارة`);
+        record.attachmentFileUrl = uploaded.url;
+      } catch(e){
+        msg.textContent = 'تعذّر رفع المرفق — تأكّد من اتصالك وحاول مرة أخرى';
+        saveBtn.disabled = false;
+        return;
+      }
+    }
     if(isEdit){
       const v = state.visitors.find(x=>x.id===existing.id);
       if(v) Object.assign(v, record);

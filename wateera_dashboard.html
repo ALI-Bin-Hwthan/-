@@ -225,6 +225,7 @@ const state = {
   gradesApplied: false,
   leaveTrackingApplied: false,
   trialStationsRemoved: false,
+  huguesLeaveFixApplied: false,
   saveStatus: "جارٍ التهيئة...",
   userEmail: "",
 };
@@ -459,6 +460,7 @@ async function loadDataFromDrive(){
       state.gradesApplied = !!data.gradesApplied;
       state.leaveTrackingApplied = !!data.leaveTrackingApplied;
       state.trialStationsRemoved = !!data.trialStationsRemoved;
+      state.huguesLeaveFixApplied = !!data.huguesLeaveFixApplied;
       state.saveStatus = "تم تحميل البيانات من Google Drive";
     } else {
       const seed = getSeedData();
@@ -596,6 +598,11 @@ async function loadDataFromDrive(){
   if(!state.trialStationsRemoved){
     removeTrialStations();
     state.trialStationsRemoved = true;
+    needsSave = true;
+  }
+  if(!state.huguesLeaveFixApplied){
+    applyHuguesLeaveFix();
+    state.huguesLeaveFixApplied = true;
     needsSave = true;
   }
   if(needsSave) await saveDataToDrive();
@@ -1155,6 +1162,20 @@ function applyGrades(){
    المنطق: الرصيد = رصيد اللقطة (19 إبريل 2026) + (25 يوم × كل تاريخ مباشرة سنوي يمر بعد اللقطة وحتى اليوم)
            − إجمالي أيام الإجازات المسجلة بعد تاريخ اللقطة. */
 /* حذف أي بيانات "محطات تجريبية" متبقية من الحساب الفعلي (الميزة أُلغيت بالكامل) — يعمل مرة واحدة بفضل trialStationsRemoved */
+/* تصحيح رصيد إجازة "هيوقو" وفق نموذج طلب إجازة 16-24 سبتمبر 2026 (رصيد رسمي بعد الطلب = 28 يوم، شامل 3 أيام بدل تمديد عقد) — يعمل مرة واحدة */
+function applyHuguesLeaveFix(){
+  const d = state.documents.find(x=>x.employeeId==='u800528');
+  if(!d) return false;
+  d.leaveSnapshotDate = "2026-09-24";
+  d.leaveSnapshotBalance = 28;
+  if(!d.leaveHistory) d.leaveHistory = [];
+  const already = d.leaveHistory.some(h=>h.from==='2026-09-16' && h.to==='2026-09-24');
+  if(!already){
+    d.leaveHistory.push({ from:"2026-09-16", to:"2026-09-24", days:7, note:"إجازة عائلية سنوية — الدمام إلى فرنسا" });
+  }
+  return true;
+}
+
 function removeTrialStations(){
   const before = state.facilities.length;
   state.facilities = state.facilities.filter(f => f.kind !== "محطة تجريبية");
@@ -1268,7 +1289,7 @@ function computeExpertLeave(d){
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, visitors: state.visitors, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, trialStationsRemoved: state.trialStationsRemoved, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
+    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, visitors: state.visitors, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, trialStationsRemoved: state.trialStationsRemoved, huguesLeaveFixApplied: state.huguesLeaveFixApplied, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {
@@ -2551,6 +2572,15 @@ function openLeaveManageModal(docId){
         </div>
         <button id="lv_addBtn" style="margin-top:8px;padding:7px 16px;border-radius:8px;border:none;background:var(--teal);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">+ إضافة إجازة</button>
       </div>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--line);background:#FCF8ED;border-radius:8px;padding:12px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">✏️ تعديل رصيد الإجازة يدويًا</div>
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:8px;">استخدم هذا لو عندك رقم رصيد رسمي (من نموذج طلب إجازة مثلًا) يختلف عن الرصيد المحسوب تلقائيًا. الرصيد الحالي المحسوب: <b>${(()=>{ const li = computeExpertLeave(d); return li && !li.inactive ? li.balance + ' يوم' : '—'; })()}</b> — آخر تحديث رصيد يدوي: ${esc(d.leaveSnapshotDate)||'—'} (${d.leaveSnapshotBalance ?? '—'} يوم)</div>
+        <div class="fgrid">
+          ${inputRow("الرصيد الصحيح (يوم)", `<input type="number" id="lv_manualBalance" placeholder="مثال: 28">`)}
+          ${inputRow("اعتبارًا من تاريخ", `<input type="date" id="lv_manualDate" value="${new Date().toISOString().slice(0,10)}">`)}
+        </div>
+        <button id="lv_manualSaveBtn" style="margin-top:8px;padding:7px 16px;border-radius:8px;border:none;background:var(--navy);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;">حفظ الرصيد اليدوي</button>
+      </div>
       <div id="leaveModalMsg" style="font-size:11.5px;color:var(--muted);margin-top:8px;min-height:14px;"></div>`;
   }
 
@@ -2608,6 +2638,18 @@ function openLeaveManageModal(docId){
         }
       }
       d.leaveHistory.push(entry);
+      await saveDataToDrive();
+      open();
+    });
+    const manualSaveBtn = document.getElementById('lv_manualSaveBtn');
+    if(manualSaveBtn) manualSaveBtn.addEventListener('click', async ()=>{
+      const msg = document.getElementById('leaveModalMsg');
+      const balVal = document.getElementById('lv_manualBalance').value;
+      const dateVal = document.getElementById('lv_manualDate').value;
+      if(balVal === '' || !dateVal){ if(msg) msg.textContent = 'الرجاء إدخال الرصيد والتاريخ.'; return; }
+      d.leaveSnapshotBalance = Number(balVal);
+      d.leaveSnapshotDate = dateVal;
+      if(!d.joiningDate){ if(msg) msg.textContent = 'تنبيه: لا يوجد تاريخ مباشرة لهذا الخبير، فلن يُحتسب استحقاق سنوي تلقائي مستقبلًا.'; }
       await saveDataToDrive();
       open();
     });
@@ -2741,7 +2783,7 @@ async function openRestoreModal(){
 async function restoreFromBackup(fileId){
   if(!confirm("سيتم استبدال كل البيانات الحالية بهذي النسخة الاحتياطية. سنأخذ نسخة من وضعك الحالي أولاً للأمان. هل تريد المتابعة؟")) return;
   try{
-    const currentPayload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, visitors: state.visitors, idCounter, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, trialStationsRemoved: state.trialStationsRemoved, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
+    const currentPayload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, visitors: state.visitors, idCounter, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, trialStationsRemoved: state.trialStationsRemoved, huguesLeaveFixApplied: state.huguesLeaveFixApplied, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
     await saveAutoBackupToDrive(currentPayload);
 
     const raw = await driveGetFileContent(fileId);

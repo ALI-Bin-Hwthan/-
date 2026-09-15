@@ -1935,6 +1935,12 @@ function renderVisitors(){
     const attachmentLink = v.attachmentFileUrl
       ? `<a href="${v.attachmentFileUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;color:var(--teal);font-size:10px;font-weight:600;">${icon('card',9)} عرض مرفق الزيارة</a>`
       : '';
+    const hospitalityBadge = v.hospitalityRequested
+      ? `<span class="chip" style="background:#FCF3E4;color:var(--amber);">☕ يوجد طلب ضيافة</span>`
+      : '';
+    const hospitalityInvoiceLink = v.hospitalityInvoiceUrl
+      ? `<a href="${v.hospitalityInvoiceUrl}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:3px;color:var(--teal);font-size:10px;font-weight:600;">${icon('card',9)} عرض فاتورة الضيافة</a>`
+      : (v.hospitalityRequested ? `<span style="font-size:10px;color:var(--muted);">— بدون فاتورة مرفوعة بعد</span>` : '');
     return `
     <div class="card" style="border-top:4px solid var(--teal);padding:16px 18px;font-size:12.5px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
@@ -1944,6 +1950,7 @@ function renderVisitors(){
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
           ${visitorDateBadge(v.visitDate)}
+          ${hospitalityBadge}
           <button class="linkbtn editVisitorBtn" data-id="${v.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button>
           <button class="linkbtn deleteVisitorBtn" data-id="${v.id}" style="color:var(--red);">${icon('x',11)} حذف</button>
         </div>
@@ -1954,7 +1961,7 @@ function renderVisitors(){
         ${field("تاريخ الزيارة", esc(v.visitDate))}
         ${field("بيانات الزوار", esc(v.visitorsInfo))}
       </div>
-      <div style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">${idsBtn}${attachmentLink}</div>
+      <div style="margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">${idsBtn}${attachmentLink}${hospitalityInvoiceLink}</div>
     </div>`;
   }).join("") || `<div class="card" style="padding:30px;text-align:center;color:var(--muted);">لا توجد زيارات مسجلة</div>`;
 
@@ -1980,6 +1987,7 @@ function renderVisitors(){
 function openVisitorForm(existing){
   const isEdit = !!existing;
   const fileStatus = (url, label) => url ? `<div style="font-size:11px;color:var(--teal);margin-top:4px;">📎 يوجد ${label} مرفق — اختر ملفًا جديدًا لاستبداله</div>` : '';
+  const hospitalityChecked = existing?.hospitalityRequested ? 'checked' : '';
   const body = `
     <div class="fgrid">
       ${inputRow("اسم الجهة الزائرة", `<input type="text" id="v_orgName" value="${esc(existing?.orgName||'')}">`, true)}
@@ -1989,6 +1997,8 @@ function openVisitorForm(existing){
       ${inputRow("الغرض من الزيارة", `<input type="text" id="v_purpose" value="${esc(existing?.purpose||'')}">`, true)}
       ${inputRow("بيانات الزوار (الأسماء/المناصب)", `<textarea id="v_visitorsInfo" rows="3">${esc(existing?.visitorsInfo||'')}</textarea>`, true)}
       ${inputRow("رفع مرفق (خطاب الزيارة / التصريح / أي ملف)", `<input type="file" id="v_attachmentFile" accept=".pdf,image/*,.doc,.docx">${fileStatus(existing?.attachmentFileUrl,'ملف')}`, true)}
+      ${inputRow("طلب ضيافة؟", `<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;cursor:pointer;"><input type="checkbox" id="v_hospitality" ${hospitalityChecked}> يوجد طلب ضيافة لهذه الزيارة</label>`, true)}
+      ${inputRow("فاتورة الضيافة (إن وجدت)", `<input type="file" id="v_hospitalityInvoiceFile" accept=".pdf,image/*">${fileStatus(existing?.hospitalityInvoiceUrl,'فاتورة ضيافة')}`, true)}
     </div>
     <div id="visitorUploadMsg" style="font-size:12px;color:var(--muted);margin-top:10px;min-height:16px;"></div>`;
   openModal(isEdit ? "تعديل زيارة" : "إضافة زيارة", body, async ()=>{
@@ -2004,8 +2014,11 @@ function openVisitorForm(existing){
       purpose: document.getElementById('v_purpose').value.trim(),
       visitorsInfo: document.getElementById('v_visitorsInfo').value.trim(),
       attachmentFileUrl: existing?.attachmentFileUrl || null,
+      hospitalityRequested: document.getElementById('v_hospitality').checked,
+      hospitalityInvoiceUrl: existing?.hospitalityInvoiceUrl || null,
     };
     const fileInput = document.getElementById('v_attachmentFile');
+    const hospitalityFileInput = document.getElementById('v_hospitalityInvoiceFile');
     if(fileInput && fileInput.files && fileInput.files[0]){
       saveBtn.disabled = true;
       msg.textContent = 'جارٍ رفع المرفق...';
@@ -2014,6 +2027,18 @@ function openVisitorForm(existing){
         record.attachmentFileUrl = uploaded.url;
       } catch(e){
         msg.textContent = 'تعذّر رفع المرفق — تأكّد من اتصالك وحاول مرة أخرى';
+        saveBtn.disabled = false;
+        return;
+      }
+    }
+    if(hospitalityFileInput && hospitalityFileInput.files && hospitalityFileInput.files[0]){
+      saveBtn.disabled = true;
+      msg.textContent = 'جارٍ رفع فاتورة الضيافة...';
+      try{
+        const uploaded = await driveUploadFile(hospitalityFileInput.files[0], `${orgName} — فاتورة ضيافة`);
+        record.hospitalityInvoiceUrl = uploaded.url;
+      } catch(e){
+        msg.textContent = 'تعذّر رفع فاتورة الضيافة — تأكّد من اتصالك وحاول مرة أخرى';
         saveBtn.disabled = false;
         return;
       }
@@ -2123,12 +2148,18 @@ const VISITOR_FIELD_MAP = {
   "تاريخ الزيارة": "visitDate",
   "الغرض من الزيارة": "purpose",
   "بيانات الزوار": "visitorsInfo",
+  "طلب ضيافة": "hospitalityRequested",
 };
 const VISITOR_DATE_FIELDS = new Set(["visitDate"]);
+const VISITOR_BOOL_FIELDS = new Set(["hospitalityRequested"]);
 
 function downloadVisitorsTemplate(){
   const headers = Object.keys(VISITOR_FIELD_MAP);
-  const rows = (state.visitors||[]).map(v => headers.map(h => v[VISITOR_FIELD_MAP[h]] || ''));
+  const rows = (state.visitors||[]).map(v => headers.map(h => {
+    const key = VISITOR_FIELD_MAP[h];
+    if(VISITOR_BOOL_FIELDS.has(key)) return v[key] ? 'نعم' : 'لا';
+    return v[key] || '';
+  }));
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
   ws['!cols'] = headers.map(()=>({ wch: 22 }));
   const wb = XLSX.utils.book_new();
@@ -2150,7 +2181,9 @@ function handleVisitorsImportFile(file){
         const rec = {};
         Object.entries(VISITOR_FIELD_MAP).forEach(([ar, key])=>{
           let v = row[ar];
-          v = VISITOR_DATE_FIELDS.has(key) ? normalizeImportDate(v) : ((v===null||v===undefined) ? '' : String(v).trim());
+          if(VISITOR_DATE_FIELDS.has(key)) v = normalizeImportDate(v);
+          else if(VISITOR_BOOL_FIELDS.has(key)) v = ['نعم','yes','true','1'].includes(String(v).trim().toLowerCase());
+          else v = (v===null||v===undefined) ? '' : String(v).trim();
           rec[key] = v;
         });
         if(!rec.orgName){ skipped++; return; }

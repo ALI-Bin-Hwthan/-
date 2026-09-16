@@ -2417,6 +2417,59 @@ function unknown(q){
   }
   return smartClarify(q,hits) + refHtml;
 }
+/* مجموعات المجالات — تدمج تسميات المجالات المتقاربة (مثل "الرواتب" و"الرواتب والبدلات") تحت مجموعة واحدة،
+   وتسمح للمستخدم يطلب "كل المعلومات" عن مجال كامل فيعرض كل المواضيع المفهرسة تحته دفعة واحدة. */
+const DOMAIN_GROUPS = [
+  { label: "الإجازات", keywords: ["اجازات","الاجازه","اجازه"], domains: ["الإجازات"] },
+  { label: "الرواتب والبدلات", keywords: ["رواتب","الاجور","بدلات","البدل"], domains: ["الرواتب والبدلات","الرواتب","الأجور","البدلات"] },
+  { label: "التوظيف والعقود", keywords: ["توظيف","العقود","عقد العمل","التعاقد"], domains: ["التوظيف","التوظيف والعقود","العقود"] },
+  { label: "إنهاء الخدمة", keywords: ["انهاء الخدمه","نهايه الخدمه","الاستقاله","مكافاه نهايه الخدمه"], domains: ["إنهاء الخدمة","نهاية الخدمة"] },
+  { label: "الأداء والانضباط", keywords: ["الاداء","تقييم الاداء","الانضباط"], domains: ["الأداء","الأداء والانضباط"] },
+  { label: "المخالفات والجزاءات", keywords: ["مخالفات","جزاءات","الجزاء"], domains: ["المخالفات والجزاءات"] },
+  { label: "الانتداب والسفر", keywords: ["انتداب","السفر"], domains: ["الانتداب والسفر","الانتداب"] },
+  { label: "بيئة العمل وسلوكياته", keywords: ["بيئه العمل","سلوكيات العمل","التحرش","الايذاء"], domains: ["بيئة العمل","سلوكيات العمل"] },
+  { label: "الإعارة والاستعارة", keywords: ["اعاره","استعاره"], domains: ["الإعارة والاستعارة"] },
+  { label: "التدريب والتطوير", keywords: ["تدريب","الابتعاث"], domains: ["التدريب والتطوير"] },
+  { label: "التظلمات", keywords: ["تظلم","التظلمات"], domains: ["التظلمات"] },
+  { label: "الرعاية الصحية والخدمات الاجتماعية", keywords: ["رعايه صحيه","تامين","خدمات اجتماعيه"], domains: ["الرعاية الصحية والخدمات الاجتماعية"] },
+  { label: "الخبراء", keywords: ["الخبراء"], domains: ["الخبراء"] },
+  { label: "التوطين", keywords: ["توطين","نطاقات"], domains: ["التوطين"] },
+  { label: "الحوكمة", keywords: ["حوكمه","صاحب الصلاحيه"], domains: ["الحوكمة"] },
+  { label: "ساعات العمل", keywords: ["ساعات العمل","العمل الاضافي"], domains: ["ساعات العمل"] },
+  { label: "المسار الوظيفي", keywords: ["الترقيه","المسار الوظيفي"], domains: ["المسار الوظيفي"] },
+  { label: "المساءلة", keywords: ["مساءله"], domains: ["المساءلة"] },
+  { label: "الحالات الخاصة", keywords: ["حالات خاصه"], domains: ["الحالات الخاصة"] },
+  { label: "السلامة", keywords: ["السلامه"], domains: ["السلامة"] },
+];
+
+const DOMAIN_ALL_WORDS = ["كل","جميع","شامل","الكل","كامل","كافه","تفاصيل كل","معلومات كل","بيانات كل","كل شي","كل المعلومات","كل البيانات","كل التفاصيل","قائمه","كل الاحكام","الفهرس","بيانات","معلومات"];
+
+/* يحدد هل يطلب المستخدم استعراض مجال كامل (وليس سؤالاً دقيقاً عن تفصيل واحد) */
+function detectDomainRequest(q){
+  const nq = expandQuery(q);
+  const wantsAll = DOMAIN_ALL_WORDS.some(w => nq.includes(norm(w)));
+  const wordCount = nq.trim().split(/\s+/).filter(Boolean).length;
+  for(const g of DOMAIN_GROUPS){
+    const matched = g.keywords.some(w => nq.includes(norm(w)));
+    if(matched && (wantsAll || wordCount <= 2)) return g;
+  }
+  return null;
+}
+
+function renderDomainOverview(group){
+  const items = KB.filter(k => group.domains.includes(k.domain));
+  if(!items.length) return `<div class="card-title">${group.label}</div><div class="section">لا توجد مواضيع مفهرسة حاليًا تحت هذا المجال.</div>`;
+  const blocks = items.map(k => `
+    <div class="section" style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid #eef2f7;">
+      <h3 style="margin-bottom:4px;">${k.topic}</h3>
+      <div style="font-size:11px;color:#8aa3c0;margin-bottom:6px;">${k.source} · ${k.article} · ${k.confidence}</div>
+      <div>${k.answer}</div>
+    </div>`).join('');
+  return `<div class="card-title">مجال: ${group.label} (${items.length} موضوع)</div>
+    <div class="section primary">${blocks}</div>
+    <div class="section" style="font-size:12px;color:#8aa3c0;">💬 اكتب اسم أي موضوع من الأعلى بالتحديد لعرض تفاصيله الكاملة (المخاطر، الإجراءات، ونص المادة من لائحة الهيئة ونظام العمل).</div>`;
+}
+
 function topicsList(){return `<div class="card-title">المواضيع المعكوسة في النسخة الحالية</div><div class="section primary"><h3>الفهرس</h3><ul>${KB.map(k=>`<li><b>${k.domain}</b> — ${k.topic} <span style="color:#8aa3c0">(${k.article})</span></li>`).join('')}</ul></div>`}
 function generalOptions(k){
   return `<div class="section rec"><h3>اختيارات للاستزادة</h3><div class="choice-grid">
@@ -2490,6 +2543,8 @@ function dualRef(k) {
 function getReply(q){
   let nq=expandQuery(q);
   if(nq.includes('قائمه المواضيع')||nq.includes('المواضيع المفهرسه')||nq.includes('الفهرس'))return {tag:'فهرس لائحة الهيئة',html:topicsList()};
+  let domainReq = detectDomainRequest(q);
+  if(domainReq) return {tag:`مجال: ${domainReq.label}`, html: renderDomainOverview(domainReq)};
   let calc=tryCalc(q); if(calc){
     // Add dual ref to calc results
     let k2=KB.find(x=>x.id==='EOS-CALC')||KB[0];

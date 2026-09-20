@@ -2417,6 +2417,87 @@ function unknown(q){
   }
   return smartClarify(q,hits) + refHtml;
 }
+/* ================== جدول المسار الوظيفي وسلم الدرجات ==================
+   منقول حرفيًا من الجدول الرسمي المعتمد الذي زوّدنا به المستخدم (سلم الدرجات المعتمد + الحالي مقابل كل مسار وظيفي). */
+const CAREER_GRADES = [
+  {level:12, code:"E3"},
+  {level:11, code:"E2"},
+  {level:10, code:"E1"},
+  {level:9,  code:"M3"},
+  {level:8,  code:"M2"},
+  {level:7,  code:"M1"},
+  {level:6,  code:"P3"},
+  {level:5,  code:"P2"},
+  {level:4,  code:"P1"},
+  {level:3,  code:"S3"},
+  {level:2,  code:"S2"},
+];
+const CAREER_TRACKS = [
+  {key:"leadership",   label:"مسار الوظائف القيادية الرئيسية", short:"القيادية"},
+  {key:"main",         label:"المسار الرئيسي",                 short:"الرئيسي"},
+  {key:"experts",      label:"مسار الخبراء",                   short:"الخبراء"},
+  {key:"accountants",  label:"مسار المحاسبين",                 short:"المحاسبين"},
+  {key:"pharmacists",  label:"مسار الصيدلين",                  short:"الصيدلين"},
+  {key:"legal",        label:"مسار القانونين",                 short:"القانونين"},
+  {key:"medical",      label:"مسار الأطبة والمرضين",           short:"الأطبة والمرضين"},
+  {key:"projects",     label:"مسار المشاريع",                  short:"المشاريع"},
+  {key:"researchers",  label:"مسار الباحثين",                  short:"الباحثين"},
+  {key:"engineers",    label:"مسار المهندسين",                 short:"المهندسين"},
+  {key:"technicians",  label:"مسار الفنين",                    short:"الفنين"},
+  {key:"writers",      label:"مسار الكاتب",                    short:"الكاتب"},
+  {key:"photography",  label:"مسار التصوير",                   short:"التصوير"},
+  {key:"training",     label:"مسار التدريب",                   short:"التدريب"},
+  {key:"warehouse",    label:"مسار المستودعات",                short:"المستودعات"},
+  {key:"editors",      label:"مسار المحررين",                  short:"المحررين"},
+  {key:"firefighting", label:"مسار الإطفاء",                   short:"الإطفاء"},
+  {key:"security",     label:"مسار الأمن",                     short:"الأمن"},
+  {key:"drivers",      label:"مسار السائقين",                  short:"السائقين"},
+];
+const CAREER_PATH_DATA = {
+  12: {leadership:"نائب الرئيس", experts:"مساعد الرئيس"},
+  11: {leadership:"وكيل", main:"مدير تنفيذي I", experts:"مساعد الرئيس / مستشار أعلى"},
+  10: {leadership:"مدير عام", main:"مدير عام I", experts:"مستشار / مستشار أعلى"},
+  9:  {leadership:"مدير", main:"مدير I", experts:"خبير أول"},
+  8:  {main:"مدير", experts:"خبير"},
+  7:  {leadership:"قائد فريق", main:"أخصائي رئيسي", experts:"خبير مساعد", accountants:"محاسب رئيسي", pharmacists:"صيدلي رئيسي", legal:"قانوني رئيسي", medical:"طبيب أول", projects:"مدير رئيسي مشروع", researchers:"باحث رئيسي", engineers:"مهندس رئيسي", technicians:"مشرف في", writers:"مدير مكتب", training:"مدرب رئيسي", warehouse:"مشرف مستودع", editors:"مشرف تحرير", firefighting:"مشرف إطفاء", security:"مشرف أمن"},
+  6:  {main:"أخصائي أول", accountants:"محاسب أول", pharmacists:"صيدلي أول", legal:"قانوني أول", medical:"طبيب / ممرض رئيسي", projects:"مدير أول مشروع", researchers:"باحث أول", engineers:"مهندس أول", technicians:"في رئيسي", writers:"سكرتير تنفيذي", training:"مدرب أول", warehouse:"أمين رئيسي مستودع", editors:"محرر رئيسي", firefighting:"رجل إطفاء رئيسي", security:"رجل أمن رئيسي"},
+  5:  {main:"أخصائي", accountants:"محاسب", pharmacists:"صيدلي", legal:"قانوني", medical:"ممرض أول", projects:"مدير مشروع", researchers:"باحث", engineers:"مهندس", technicians:"في ثاني", writers:"سكرتير ثاني", training:"مدرب", warehouse:"أمين أول مستودع", editors:"محرر أول", firefighting:"رجل إطفاء ثاني", security:"رجل أمن ثاني"},
+  4:  {main:"منسق", accountants:"مساعد محاسب", pharmacists:"مساعد صيدلي", legal:"مساعد قانوني", medical:"ممرض", researchers:"مساعد باحث", engineers:"مساعد مهندس", technicians:"في أول", writers:"سكرتير أول", photography:"مصور رئيسي", training:"مساعد مدرب", warehouse:"أمين مستودع", editors:"محرر", firefighting:"رجل إطفاء أول", security:"رجل أمن أول"},
+  3:  {main:"مسؤول", technicians:"في", writers:"سكرتير", photography:"مصور أول", warehouse:"عامل رئيسي", firefighting:"رجل إطفاء", security:"رجل أمن", drivers:"سائق رئيسي"},
+  2:  {main:"إداري", technicians:"مساعد في", photography:"مصور", warehouse:"عامل أول", drivers:"سائق أول"},
+};
+
+/* كلمات تشغّل عرض جدول المسار الوظيفي/الدرجات الكامل */
+const CAREER_PATH_TRIGGERS = ["مسار وظيفي","المسار الوظيفي","قريد","الدرجه الوظيفيه","الدرجات الوظيفيه","سلم الدرجات","جدول الدرجات","جدول المسار الوظيفي","سلم الدرجات المعتمد","سلم الدرجات الحالي","ما هو قريدي","ايش قريدي","درجتي الوظيفيه"];
+
+/* يتحقق هل السؤال يطلب جدول المسار الوظيفي الكامل، أو مسار تخصص معيّن بالذات */
+function detectCareerPathRequest(q){
+  const nq = norm(q);
+  let track = null;
+  for(const t of CAREER_TRACKS){
+    if(nq.includes(norm(t.label)) || nq.includes(norm(t.short))){ track = t; break; }
+  }
+  const generic = CAREER_PATH_TRIGGERS.some(w => nq.includes(norm(w)));
+  if(track || generic) return {track};
+  return null;
+}
+
+function renderCareerPathTable(trackFilter){
+  const tracks = trackFilter ? [trackFilter] : CAREER_TRACKS;
+  const head = `<th>سلم الحالي</th><th>سلم المعتمد</th>` + tracks.map(t=>`<th>${t.label}</th>`).join('');
+  const rows = CAREER_GRADES.map(g=>{
+    const row = CAREER_PATH_DATA[g.level] || {};
+    const cells = tracks.map(t => `<td>${row[t.key] ? row[t.key] : '—'}</td>`).join('');
+    return `<tr><td><b>${g.level}</b></td><td><b>${g.code}</b></td>${cells}</tr>`;
+  }).join('');
+  const title = trackFilter ? `جدول المسار الوظيفي — ${trackFilter.label}` : `جدول المسار الوظيفي وسلم الدرجات المعتمد`;
+  return `<div class="card-title">${title}</div>
+    <div class="section primary" style="overflow-x:auto;">
+      <table style="min-width:100%;"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>
+    </div>
+    <div class="section" style="font-size:12px;color:#8aa3c0;">💬 اكتب اسم مسار محدد (مثل "مسار المهندسين" أو "مسار المحاسبين") لعرض درجاته فقط، أو "مسار وظيفي" لعرض الجدول الكامل.</div>`;
+}
+
 /* مجموعات المجالات — تدمج تسميات المجالات المتقاربة (مثل "الرواتب" و"الرواتب والبدلات") تحت مجموعة واحدة،
    وتسمح للمستخدم يطلب "كل المعلومات" عن مجال كامل فيعرض كل المواضيع المفهرسة تحته دفعة واحدة. */
 const DOMAIN_GROUPS = [
@@ -2543,6 +2624,8 @@ function dualRef(k) {
 function getReply(q){
   let nq=expandQuery(q);
   if(nq.includes('قائمه المواضيع')||nq.includes('المواضيع المفهرسه')||nq.includes('الفهرس'))return {tag:'فهرس لائحة الهيئة',html:topicsList()};
+  let careerReq = detectCareerPathRequest(q);
+  if(careerReq) return {tag: careerReq.track ? `المسار الوظيفي: ${careerReq.track.label}` : 'المسار الوظيفي وسلم الدرجات', html: renderCareerPathTable(careerReq.track)};
   let domainReq = detectDomainRequest(q);
   if(domainReq) return {tag:`مجال: ${domainReq.label}`, html: renderDomainOverview(domainReq)};
   let calc=tryCalc(q); if(calc){

@@ -2477,7 +2477,9 @@ function detectCareerPathRequest(q){
   for(const t of CAREER_TRACKS){
     if(nq.includes(norm(t.label)) || nq.includes(norm(t.short))){ track = t; break; }
   }
-  const generic = CAREER_PATH_TRIGGERS.some(w => nq.includes(norm(w)));
+  const hasMasar = nq.includes(norm('مسار'));
+  const hasWazifi = nq.includes(norm('وظيف'));
+  const generic = CAREER_PATH_TRIGGERS.some(w => nq.includes(norm(w))) || (hasMasar && hasWazifi);
   if(track || generic) return {track};
   return null;
 }

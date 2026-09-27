@@ -608,6 +608,46 @@ async function loadDataFromDrive(){
   if(needsSave) await saveDataToDrive();
   state.ready = true;
   render();
+  checkLocalSnapshotRecovery();
+}
+
+/* يتحقق عند كل تحميل للوحة: هل فيه نسخة محلية (بهذا الجهاز تحديدًا) من محاولة حفظ سابقة لم تصل لـ Drive بنجاح؟
+   لو موجودة ومختلفة عن النسخة المحمّلة من Drive، نعرضها بالتفصيل على المستخدم قبل أي شيء ونعطيه خيار الاستعادة —
+   هذا يمنع تكرار مشكلة فقدان بيانات أُضيفت لكن ما اكتمل حفظها. */
+function checkLocalSnapshotRecovery(){
+  let snap = null;
+  try{
+    const raw = localStorage.getItem(LOCAL_SNAPSHOT_KEY);
+    if(raw) snap = JSON.parse(raw);
+  }catch(e){ return; }
+  if(!snap || snap.synced) return;
+  let localData;
+  try{ localData = JSON.parse(snap.payload); }catch(e){ return; }
+  const diffs = [];
+  const compareCounts = (label, a, b) => { if((a?.length||0) !== (b?.length||0)) diffs.push(`${label}: ${(a?.length||0)} بالنسخة المحلية مقابل ${(b?.length||0)} في Drive`); };
+  compareCounts('معاملات التراسل', localData.corr, state.corr);
+  compareCounts('مهام RACI', localData.tasks, state.tasks);
+  compareCounts('المرافق/المختبرات', localData.facilities, state.facilities);
+  compareCounts('الوثائق', localData.documents, state.documents);
+  compareCounts('زوار الواحة', localData.visitors, state.visitors);
+  if(!diffs.length){ markLocalSnapshotSynced(); return; }
+  const when = new Date(snap.attemptedAt).toLocaleString('ar-SA');
+  const body = `
+    <div class="section" style="font-size:13px;line-height:1.9;">
+      <p>وجدنا نسخة محلية بهذا الجهاز من محاولة حفظ سابقة (${esc(when)}) لم تكتمل بنجاح إلى Google Drive، وفيها بيانات تختلف عن النسخة المحمّلة الآن:</p>
+      <ul>${diffs.map(d=>`<li>${esc(d)}</li>`).join('')}</ul>
+      <p style="color:#B3261E;font-weight:700;">اضغط "حفظ" بالأسفل لاستعادة هذه النسخة المحلية (الأحدث) وحفظها في Drive فورًا، أو "إلغاء" لتجاهلها والبقاء على نسخة Drive الحالية (ستبقى النسخة المحلية محفوظة ويُعاد سؤالك عنها لاحقًا).</p>
+    </div>`;
+  openModal("⚠️ توجد بيانات محلية لم تُحفظ بعد", body, ()=>{
+    state.teams = localData.teams; state.tasks = localData.tasks; state.corr = localData.corr; state.facilities = localData.facilities;
+    state.documents = localData.documents || []; state.visitors = localData.visitors || [];
+    if(localData.knowledgeDocs) state.knowledgeDocs = localData.knowledgeDocs;
+    if(localData.hrMemory) state.hrMemory = localData.hrMemory;
+    if(localData.chatMessages) state.chatMessages = localData.chatMessages;
+    closeModal();
+    render();
+    saveDataToDrive();
+  });
 }
 
 /* يضيف إدارة المختبرات المركزية إذا لم تكن موجودة — آمن للتشغيل المتكرر */
@@ -1286,22 +1326,71 @@ function computeExpertLeave(d){
   };
 }
 
+/* =============== شبكة أمان محلية ضد فقدان البيانات ===============
+   المشكلة اللي نعالجها: لو فشل الحفظ لـ Drive (انترنت، توكن منتهي، إلخ) والمستخدم عمل تحديث للصفحة قبل ما ينجح الحفظ،
+   كانت البيانات الجديدة تُفقد نهائيًا لأنها موجودة بالذاكرة فقط. الحل: نخزّن كل محاولة حفظ في localStorage فورًا
+   (قبل حتى ما نحاول نرفعها لـ Drive)، ونعيد المحاولة تلقائيًا، ونعرض تحذير واضح لا يُخطئه أحد، ونتحقق عند كل تحميل
+   للصفحة هل فيه نسخة محلية أحدث ما وصلت لـ Drive بعد — ولو موجودة نعرضها على المستخدم بالضبط قبل ما نكمل. */
+const LOCAL_SNAPSHOT_KEY = 'wateera-local-snapshot';
+let saveRetryTimer = null;
+let saveRetryCount = 0;
+
+function persistLocalSnapshot(payload){
+  try{
+    localStorage.setItem(LOCAL_SNAPSHOT_KEY, JSON.stringify({ payload, attemptedAt: Date.now(), synced: false }));
+  }catch(e){ /* localStorage غير متاح بهذا المتصفح — لا نوقف الحفظ الأساسي بسبب هذا */ }
+}
+function markLocalSnapshotSynced(){
+  try{ localStorage.removeItem(LOCAL_SNAPSHOT_KEY); }catch(e){}
+}
+function updateSaveBanner(show, text){
+  let banner = document.getElementById('saveFailBanner');
+  if(show){
+    if(!banner){
+      banner = document.createElement('div');
+      banner.id = 'saveFailBanner';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#B3261E;color:#fff;padding:10px 16px;text-align:center;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.25);';
+      document.body.prepend(banner);
+    }
+    banner.innerHTML = `⚠️ ${esc(text)} <button id="saveFailRetryBtn" style="background:#fff;color:#B3261E;border:none;border-radius:6px;padding:6px 12px;font-weight:700;cursor:pointer;">إعادة المحاولة الآن</button>`;
+    const btn = document.getElementById('saveFailRetryBtn');
+    if(btn) btn.onclick = ()=>{ saveRetryCount = 0; if(saveRetryTimer){ clearTimeout(saveRetryTimer); saveRetryTimer=null; } saveDataToDrive(); };
+  } else if(banner){
+    banner.remove();
+  }
+}
+window.addEventListener('beforeunload', function(e){
+  let pending = false;
+  try{ const raw = localStorage.getItem(LOCAL_SNAPSHOT_KEY); if(raw){ const s = JSON.parse(raw); pending = !s.synced; } }catch(err){}
+  if(pending){ e.preventDefault(); e.returnValue = ''; return ''; }
+});
+
 async function saveDataToDrive(){
   updateSaveIndicator("جارٍ الحفظ إلى Drive...", "#B9C2D0");
+  const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, visitors: state.visitors, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, trialStationsRemoved: state.trialStationsRemoved, huguesLeaveFixApplied: state.huguesLeaveFixApplied, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
+  persistLocalSnapshot(payload); // نخزّنها محليًا فورًا — حتى لو فشل كل شي بعدها، آخر تغيير ما بيضيع من هذا الجهاز
   try{
-    const payload = JSON.stringify({ teams: state.teams, tasks: state.tasks, corr: state.corr, facilities: state.facilities, documents: state.documents, visitors: state.visitors, idCounter, trialCleared: state.trialCleared, expertsImported: state.expertsImported, passportScansApplied: state.passportScansApplied, iqamaScansApplied: state.iqamaScansApplied, sultanAdded: state.sultanAdded, abdallatifAdded: state.abdallatifAdded, iqamaScansApplied2: state.iqamaScansApplied2, mubashirAdded: state.mubashirAdded, mustakeemAdded: state.mustakeemAdded, passportScansApplied3: state.passportScansApplied3, passportScansApplied4: state.passportScansApplied4, passportScansApplied5: state.passportScansApplied5, amrAdded: state.amrAdded, imranAdded: state.imranAdded, joiningDatesApplied: state.joiningDatesApplied, hrBatch2Applied: state.hrBatch2Applied, chrisEastIdFixed: state.chrisEastIdFixed, friedrichAdded: state.friedrichAdded, nourBirthApplied: state.nourBirthApplied, nikolayAdded: state.nikolayAdded, masterListApplied: state.masterListApplied, conflictsResolved: state.conflictsResolved, gradesApplied: state.gradesApplied, leaveTrackingApplied: state.leaveTrackingApplied, trialStationsRemoved: state.trialStationsRemoved, huguesLeaveFixApplied: state.huguesLeaveFixApplied, knowledgeDocs: state.knowledgeDocs, chatMessages: state.chatMessages.slice(-60), hrMemory: state.hrMemory });
     if(!driveFileId){
       driveFileId = await driveCreateFile(payload);
     } else {
       await driveUpdateFile(driveFileId, payload);
     }
     saveAutoBackupToDrive(payload); // شبكة أمان تلقائية، لا تعطّل الحفظ الأساسي لو فشلت
+    markLocalSnapshotSynced();
+    saveRetryCount = 0;
+    if(saveRetryTimer){ clearTimeout(saveRetryTimer); saveRetryTimer = null; }
+    updateSaveBanner(false);
     const t = new Date().toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit' });
     state.saveStatus = "آخر حفظ في Google Drive: " + t;
     updateSaveIndicator(state.saveStatus, "#B9C2D0");
   } catch(e){
     state.saveStatus = "تعذّر الحفظ في Drive — " + e.message;
     updateSaveIndicator(state.saveStatus, "#F2A6A0");
+    updateSaveBanner(true, "تعذّر حفظ آخر تغيير في Google Drive — بياناتك محفوظة مؤقتًا بهذا الجهاز فقط ولن تُفقد إلا إذا مسحت بيانات المتصفح. لا تُغلق الصفحة ولا تعمل تحديث. جارٍ إعادة المحاولة تلقائيًا…");
+    saveRetryCount++;
+    if(saveRetryTimer) clearTimeout(saveRetryTimer);
+    const delay = Math.min(60000, 5000 * saveRetryCount);
+    saveRetryTimer = setTimeout(()=>{ saveDataToDrive(); }, delay);
   }
 }
 function updateSaveIndicator(text, color){

@@ -193,6 +193,7 @@ const state = {
   activeTeam: "all",
   docsFilter: "all",
   showCompletedTasks: false,
+  showCompletedCorr: false,
   knowledgeDocs: [],
   chatMessages: [],
   chatBusy: false,
@@ -1678,31 +1679,48 @@ function renderRaci(){
   `;
 }
 
+function corrRow(c){
+  const lt = linkedTaskFor(c);
+  return `<tr>
+    <td style="font-weight:700;color:var(--navy2);white-space:nowrap;">${esc(c.transactionNo||'—')}</td>
+    <td style="font-weight:700;color:var(--navy2);">${c.key}</td>
+    <td style="font-weight:600;max-width:220px;">${esc(c.name)}</td>
+    <td><span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(c.team)}"></span>${esc(teamName(c.team))}</span></td>
+    <td style="color:var(--muted);">${c.scope}</td>
+    <td><span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px;background:${c.dir==='صادر'?'#EAF3F1':'#F1EFFB'};color:${c.dir==='صادر'?'var(--teal)':'#6C4FC7'};">${c.dir}</span></td>
+    <td style="white-space:nowrap;color:var(--muted);">${c.date}</td>
+    <td>${statusBadge(STATUS,c.status)}</td>
+    <td>${lt?`<button class="linkbtn goto" data-tab="raci" style="color:var(--teal);">${icon('link',11)} ${lt.key}</button>`:`<span style="color:var(--amber);font-size:11.5px;font-weight:600;">بدون ربط</span>`}</td>
+    <td><button class="linkbtn editCorrBtn" data-id="${c.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button></td>
+  </tr>`;
+}
+
 function renderCorr(){
-  const items = state.corr.filter(c => (state.activeTeam==='all'||c.team===state.activeTeam) && (c.name.includes(state.search)||c.key.includes(state.search)||(c.transactionNo||'').includes(state.search)));
-  const rows = items.map(c=>{
-    const lt = linkedTaskFor(c);
-    return `<tr>
-      <td style="font-weight:700;color:var(--navy2);white-space:nowrap;">${esc(c.transactionNo||'—')}</td>
-      <td style="font-weight:700;color:var(--navy2);">${c.key}</td>
-      <td style="font-weight:600;max-width:220px;">${esc(c.name)}</td>
-      <td><span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(c.team)}"></span>${esc(teamName(c.team))}</span></td>
-      <td style="color:var(--muted);">${c.scope}</td>
-      <td><span style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:8px;background:${c.dir==='صادر'?'#EAF3F1':'#F1EFFB'};color:${c.dir==='صادر'?'var(--teal)':'#6C4FC7'};">${c.dir}</span></td>
-      <td style="white-space:nowrap;color:var(--muted);">${c.date}</td>
-      <td>${statusBadge(STATUS,c.status)}</td>
-      <td>${lt?`<button class="linkbtn goto" data-tab="raci" style="color:var(--teal);">${icon('link',11)} ${lt.key}</button>`:`<span style="color:var(--amber);font-size:11.5px;font-weight:600;">بدون ربط</span>`}</td>
-      <td><button class="linkbtn editCorrBtn" data-id="${c.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button></td>
-    </tr>`;
-  }).join("") || `<tr><td colspan="10" style="padding:30px;text-align:center;color:var(--muted);">لا توجد معاملات مطابقة</td></tr>`;
+  const pool = state.corr.filter(c => (state.activeTeam==='all'||c.team===state.activeTeam) && (c.name.includes(state.search)||c.key.includes(state.search)||(c.transactionNo||'').includes(state.search)));
+  const activeCorr = pool.filter(c => c.status !== 'done');
+  const doneCorr = pool.filter(c => c.status === 'done');
+  const headCols = ["رقم المعاملة","المرجع","اسم المعاملة","الفريق","النوع","صادر/وارد","التاريخ","الحالة","مرتبطة بمهمة",""];
+  const activeRows = activeCorr.map(corrRow).join("") || `<tr><td colspan="10" style="padding:30px;text-align:center;color:var(--muted);">لا توجد معاملات مطابقة</td></tr>`;
+  const showDone = !!state.showCompletedCorr;
+  const doneRows = doneCorr.map(corrRow).join("") || `<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--muted);">لا توجد معاملات منجزة بعد</td></tr>`;
 
   return `
     ${toolbar("إضافة معاملة","addCorrBtn")}
     <div class="card" style="overflow:hidden;">
       <div class="scroller" style="overflow-x:auto;">
-        <table><thead><tr>${["رقم المعاملة","المرجع","اسم المعاملة","الفريق","النوع","صادر/وارد","التاريخ","الحالة","مرتبطة بمهمة",""].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
-        <tbody>${rows}</tbody></table>
+        <table><thead><tr>${headCols.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${activeRows}</tbody></table>
       </div>
+    </div>
+    <div class="card" style="overflow:hidden;margin-top:16px;">
+      <button id="toggleCompletedCorr" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:none;border:none;cursor:pointer;font-family:inherit;">
+        <span style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--navy2);font-size:13.5px;">${icon('check',14,'#2F8F5B')} المعاملات المنجزة <span style="background:#EAF3F1;color:var(--teal);border-radius:999px;padding:1px 9px;font-size:11.5px;">${doneCorr.length}</span></span>
+        <span style="color:var(--muted);font-size:12px;">${showDone?'إخفاء ▲':'عرض ▼'}</span>
+      </button>
+      ${showDone ? `<div class="scroller" style="overflow-x:auto;border-top:1px solid var(--line);">
+        <table><thead><tr>${headCols.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${doneRows}</tbody></table>
+      </div>` : ''}
     </div>
   `;
 }
@@ -3410,6 +3428,11 @@ function openCorrForm(existing){
         c.referredTo = referredTo;
         c.date = document.getElementById('c_date').value;
         c.status = document.getElementById('c_status').value;
+        // لو صارت المعاملة "منجزة" وهي مرتبطة بمهمة RACI، حدّث حالة المهمة نفسها لتبقى الصفحتان متطابقتين
+        if(c.status === 'done' && c.linkedTaskId){
+          const lt = state.tasks.find(t=>t.id===c.linkedTaskId);
+          if(lt) lt.status = 'done';
+        }
       }
       closeModal(); render(); saveDataToDrive();
       return;
@@ -3552,6 +3575,8 @@ function bindEvents(){
   if(clearDocsFilter) clearDocsFilter.addEventListener('click', ()=>{ state.docsFilter = 'all'; render(); });
   const toggleCompletedTasks = document.getElementById('toggleCompletedTasks');
   if(toggleCompletedTasks) toggleCompletedTasks.addEventListener('click', ()=>{ state.showCompletedTasks = !state.showCompletedTasks; render(); });
+  const toggleCompletedCorr = document.getElementById('toggleCompletedCorr');
+  if(toggleCompletedCorr) toggleCompletedCorr.addEventListener('click', ()=>{ state.showCompletedCorr = !state.showCompletedCorr; render(); });
   root.querySelectorAll('.downloadDocumentBtn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const d = state.documents.find(x=>x.id===btn.getAttribute('data-id'));

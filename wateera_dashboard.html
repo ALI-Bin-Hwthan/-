@@ -192,6 +192,7 @@ const state = {
   tab: "dashboard",
   activeTeam: "all",
   docsFilter: "all",
+  showCompletedTasks: false,
   knowledgeDocs: [],
   chatMessages: [],
   chatBusy: false,
@@ -1627,35 +1628,52 @@ function toolbar(addLabel, addAction, secondary){
   </div>`;
 }
 
+function raciRow(t){
+  const overdue = isOverdue(t);
+  const lc = linkedCorrFor(t);
+  const lf = facilityFor(t);
+  return `<tr>
+    <td style="font-weight:700;color:var(--navy2);">${t.key}</td>
+    <td style="max-width:220px;"><div style="font-weight:600;">${esc(t.task)}</div><div style="color:var(--muted);font-size:11.5px;margin-top:2px;">${esc(t.type)}</div></td>
+    <td><span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(t.team)}"></span>${esc(teamName(t.team))}</span></td>
+    <td><div style="display:flex;flex-wrap:wrap;max-width:220px;">${roleChip('R',t.R,'#0E7C7B')}${roleChip('A',t.A,'#142033')}${roleChip('C',t.C,'#C98A2C')}${roleChip('I',t.I,'#8A93A3')}</div></td>
+    <td>${statusBadge(STATUS,t.status)}</td>
+    <td style="white-space:nowrap;">
+      <span class="${overdue?'pulse':''}">${t.dueDate||'—'}</span>
+      ${overdue?`<div style="color:var(--red);font-size:11px;font-weight:700;margin-top:2px;">متأخرة ${daysFrom(t.dueDate)} يوم</div>`:''}
+    </td>
+    <td>${lc?`<button class="linkbtn goto" data-tab="corr" style="color:var(--teal);">${icon('link',11)} ${lc.key}</button>`:`<span style="color:var(--muted);font-size:11.5px;">—</span>`}</td>
+    <td>${lf?`<button class="linkbtn goto" data-tab="labs" style="color:var(--blue);">${icon('flask',11)} ${lf.key}</button>`:`<span style="color:var(--muted);font-size:11.5px;">—</span>`}</td>
+    <td><button class="linkbtn editTaskBtn" data-id="${t.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button></td>
+  </tr>`;
+}
+
 function renderRaci(){
-  const tasks = state.tasks.filter(t => (state.activeTeam==='all'||t.team===state.activeTeam) && (t.task.includes(state.search)||t.key.includes(state.search)));
-  const rows = tasks.map(t=>{
-    const overdue = isOverdue(t);
-    const lc = linkedCorrFor(t);
-    const lf = facilityFor(t);
-    return `<tr>
-      <td style="font-weight:700;color:var(--navy2);">${t.key}</td>
-      <td style="max-width:220px;"><div style="font-weight:600;">${esc(t.task)}</div><div style="color:var(--muted);font-size:11.5px;margin-top:2px;">${esc(t.type)}</div></td>
-      <td><span style="display:inline-flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:99px;background:${teamColor(t.team)}"></span>${esc(teamName(t.team))}</span></td>
-      <td><div style="display:flex;flex-wrap:wrap;max-width:220px;">${roleChip('R',t.R,'#0E7C7B')}${roleChip('A',t.A,'#142033')}${roleChip('C',t.C,'#C98A2C')}${roleChip('I',t.I,'#8A93A3')}</div></td>
-      <td>${statusBadge(STATUS,t.status)}</td>
-      <td style="white-space:nowrap;">
-        <span class="${overdue?'pulse':''}">${t.dueDate||'—'}</span>
-        ${overdue?`<div style="color:var(--red);font-size:11px;font-weight:700;margin-top:2px;">متأخرة ${daysFrom(t.dueDate)} يوم</div>`:''}
-      </td>
-      <td>${lc?`<button class="linkbtn goto" data-tab="corr" style="color:var(--teal);">${icon('link',11)} ${lc.key}</button>`:`<span style="color:var(--muted);font-size:11.5px;">—</span>`}</td>
-      <td>${lf?`<button class="linkbtn goto" data-tab="labs" style="color:var(--blue);">${icon('flask',11)} ${lf.key}</button>`:`<span style="color:var(--muted);font-size:11.5px;">—</span>`}</td>
-      <td><button class="linkbtn editTaskBtn" data-id="${t.id}" style="color:var(--navy2);">${icon('edit',11)} تعديل</button></td>
-    </tr>`;
-  }).join("") || `<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted);">لا توجد مهام مطابقة</td></tr>`;
+  const pool = state.tasks.filter(t => (state.activeTeam==='all'||t.team===state.activeTeam) && (t.task.includes(state.search)||t.key.includes(state.search)));
+  const activeTasks = pool.filter(t => t.status !== 'done');
+  const doneTasks = pool.filter(t => t.status === 'done');
+  const headCols = ["المرجع","المهمة","الفريق","الأدوار (RACI)","الحالة","تاريخ التسليم","تراسل مرتبط","مرفق مرتبط",""];
+  const activeRows = activeTasks.map(raciRow).join("") || `<tr><td colspan="9" style="padding:30px;text-align:center;color:var(--muted);">لا توجد مهام مطابقة</td></tr>`;
+  const showDone = !!state.showCompletedTasks;
+  const doneRows = doneTasks.map(raciRow).join("") || `<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--muted);">لا توجد مهام منجزة بعد</td></tr>`;
 
   return `
     ${toolbar("إضافة مهمة","addTaskBtn")}
     <div class="card" style="overflow:hidden;">
       <div class="scroller" style="overflow-x:auto;">
-        <table><thead><tr>${["المرجع","المهمة","الفريق","الأدوار (RACI)","الحالة","تاريخ التسليم","تراسل مرتبط","مرفق مرتبط",""].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
-        <tbody>${rows}</tbody></table>
+        <table><thead><tr>${headCols.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${activeRows}</tbody></table>
       </div>
+    </div>
+    <div class="card" style="overflow:hidden;margin-top:16px;">
+      <button id="toggleCompletedTasks" style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:none;border:none;cursor:pointer;font-family:inherit;">
+        <span style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--navy2);font-size:13.5px;">${icon('check',14,'#2F8F5B')} المهام المنجزة <span style="background:#EAF3F1;color:var(--teal);border-radius:999px;padding:1px 9px;font-size:11.5px;">${doneTasks.length}</span></span>
+        <span style="color:var(--muted);font-size:12px;">${showDone?'إخفاء ▲':'عرض ▼'}</span>
+      </button>
+      ${showDone ? `<div class="scroller" style="overflow-x:auto;border-top:1px solid var(--line);">
+        <table><thead><tr>${headCols.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+        <tbody>${doneRows}</tbody></table>
+      </div>` : ''}
     </div>
   `;
 }
@@ -3336,6 +3354,11 @@ function openTaskForm(existing){
         t.dueDate = document.getElementById('f_due').value;
         t.notes = document.getElementById('f_notes').value;
         t.linkedFacilityId = facilityId;
+        // لو صارت المهمة "منجزة" وهي مرتبطة بمعاملة تراسل، حدّث حالة المعاملة نفسها لتبقى الصفحتان متطابقتين
+        if(t.status === 'done' && t.linkedCorrId){
+          const lc = state.corr.find(c=>c.id===t.linkedCorrId);
+          if(lc) lc.status = 'done';
+        }
       }
       closeModal(); render(); saveDataToDrive();
       return;
@@ -3527,6 +3550,8 @@ function bindEvents(){
   if(resignedFilterCard) resignedFilterCard.addEventListener('click', ()=>{ state.docsFilter = 'resigned'; render(); });
   const clearDocsFilter = document.getElementById('clearDocsFilter');
   if(clearDocsFilter) clearDocsFilter.addEventListener('click', ()=>{ state.docsFilter = 'all'; render(); });
+  const toggleCompletedTasks = document.getElementById('toggleCompletedTasks');
+  if(toggleCompletedTasks) toggleCompletedTasks.addEventListener('click', ()=>{ state.showCompletedTasks = !state.showCompletedTasks; render(); });
   root.querySelectorAll('.downloadDocumentBtn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       const d = state.documents.find(x=>x.id===btn.getAttribute('data-id'));

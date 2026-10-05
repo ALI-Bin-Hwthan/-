@@ -234,6 +234,7 @@ const state = {
 let driveAccessToken = null;
 let driveFileId = null;
 let tokenClient = null;
+let silentRefreshResolve = null; // أثناء محاولة تجديد التوكن بصمت، لا نريد للـ callback الطبيعي أنه يعيد تحميل البيانات من Drive فوق التعديلات غير المحفوظة في الذاكرة
 
 const STATUS = {
   done: { label:"منجزة", color:"#2F8F5B", icon:"check" },
@@ -302,6 +303,16 @@ function initGoogleAuth(){
     client_id: GOOGLE_CLIENT_ID,
     scope: DRIVE_SCOPE,
     callback: async (resp) => {
+      // تجديد صامت للتوكن (بدون نافذة تسجيل دخول) — لا نعيد تحميل البيانات من Drive هنا أبدًا،
+      // لأن ذلك قد يطمس تعديلات غير محفوظة موجودة بالذاكرة فقط. فقط نحدّث التوكن ونكمل الحفظ.
+      if(silentRefreshResolve){
+        const resolve = silentRefreshResolve;
+        silentRefreshResolve = null;
+        if(resp.error){ resolve(false); return; }
+        driveAccessToken = resp.access_token;
+        resolve(true);
+        return;
+      }
       if(resp.error){
         state.saveStatus = "تعذّر تسجيل الدخول: " + resp.error;
         render();
@@ -319,6 +330,21 @@ function initGoogleAuth(){
 function signIn(){
   if(!tokenClient) return;
   tokenClient.requestAccessToken();
+}
+
+// محاولة تجديد توكن Google بصمت (بدون أي تفاعل من المستخدم) عند انتهاء صلاحيته (خطأ 401).
+// ترجع true لو نجح التجديد، false لو فشل (يحتاج المستخدم يسجّل دخول من جديد).
+function refreshAccessTokenSilently(){
+  return new Promise((resolve) => {
+    if(!tokenClient){ resolve(false); return; }
+    silentRefreshResolve = resolve;
+    try{
+      tokenClient.requestAccessToken({ prompt: '' });
+    }catch(e){
+      silentRefreshResolve = null;
+      resolve(false);
+    }
+  });
 }
 
 function signOut(){
@@ -361,7 +387,7 @@ async function driveCreateFile(content, fileName){
     headers: { Authorization: `Bearer ${driveAccessToken}`, "Content-Type": `multipart/related; boundary=${boundary}` },
     body,
   });
-  if(!res.ok) throw new Error("drive_create_failed");
+  if(!res.ok){ const err = new Error(`drive_create_failed (${res.status})`); err.status = res.status; throw err; }
   const data = await res.json();
   return data.id;
 }
@@ -406,7 +432,7 @@ async function driveUpdateFile(fileId, content){
     headers: { Authorization: `Bearer ${driveAccessToken}`, "Content-Type": "application/json" },
     body: content,
   });
-  if(!res.ok) throw new Error("drive_update_failed");
+  if(!res.ok){ const err = new Error(`drive_update_failed (${res.status})`); err.status = res.status; throw err; }
 }
 
 async function driveUploadFile(file, customName){
@@ -1386,6 +1412,28 @@ async function saveDataToDrive(){
     state.saveStatus = "آخر حفظ في Google Drive: " + t;
     updateSaveIndicator(state.saveStatus, "#B9C2D0");
   } catch(e){
+    if(e && e.status === 401){
+      // توكن Google انتهت صلاحيته (عادة بعد حوالي ساعة من فتح الصفحة) — نحاول تجديده بصمت تلقائيًا
+      state.saveStatus = "انتهت صلاحية الجلسة، جارٍ التجديد التلقائي...";
+      updateSaveIndicator(state.saveStatus, "#F2A6A0");
+      updateSaveBanner(true, "انتهت صلاحية الاتصال بـ Google Drive — جارٍ تجديده تلقائيًا بدون أي إجراء منك. بياناتك محفوظة مؤقتًا بهذا الجهاز ولن تُفقد. لا تُغلق الصفحة ولا تعمل تحديث.");
+      const refreshed = await refreshAccessTokenSilently();
+      if(refreshed){
+        saveDataToDrive(); // نعيد المحاولة فورًا بالتوكن الجديد
+        return;
+      }
+      // فشل التجديد الصامت (مثلاً الجلسة أُلغيت فعليًا) — نطلب تسجيل دخول واضح من المستخدم بدل إعادة محاولة بلا فائدة
+      state.saveStatus = "انتهت جلستك في Google — يلزم تسجيل الدخول من جديد لحفظ التغييرات";
+      updateSaveIndicator(state.saveStatus, "#F2A6A0");
+      updateSaveBanner(true, "انتهت جلستك في Google ولم يتم تجديدها تلقائيًا — بياناتك محفوظة مؤقتًا بهذا الجهاز ولن تُفقد، لكن يلزم تسجيل الدخول من جديد لحفظها في Drive. لا تُغلق الصفحة ولا تعمل تحديث حتى تسجّل الدخول.");
+      const btn2 = document.getElementById('saveFailRetryBtn');
+      if(btn2) btn2.onclick = ()=>{ signIn(); };
+      saveRetryCount++;
+      if(saveRetryTimer) clearTimeout(saveRetryTimer);
+      const delay2 = Math.min(60000, 5000 * saveRetryCount);
+      saveRetryTimer = setTimeout(()=>{ saveDataToDrive(); }, delay2);
+      return;
+    }
     state.saveStatus = "تعذّر الحفظ في Drive — " + e.message;
     updateSaveIndicator(state.saveStatus, "#F2A6A0");
     updateSaveBanner(true, "تعذّر حفظ آخر تغيير في Google Drive — بياناتك محفوظة مؤقتًا بهذا الجهاز فقط ولن تُفقد إلا إذا مسحت بيانات المتصفح. لا تُغلق الصفحة ولا تعمل تحديث. جارٍ إعادة المحاولة تلقائيًا…");

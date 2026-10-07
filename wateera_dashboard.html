@@ -1671,7 +1671,7 @@ function toolbar(addLabel, addAction, secondary){
       <input id="searchInput" type="text" value="${esc(state.search)}" placeholder="بحث بالاسم أو رقم المرجع..." style="padding-right:34px;">
     </div>
     <div style="display:flex;gap:8px;">
-      ${secondary ? `<button id="${secondary.action}" style="display:flex;align-items:center;gap:6px;background:#fff;color:var(--navy);border:1px solid var(--line);padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">${icon(secondary.icon||'plus',15)} ${secondary.label}</button>` : ''}
+      ${secondary ? [].concat(secondary).map(s=>`<button id="${s.action}" style="display:flex;align-items:center;gap:6px;background:#fff;color:var(--navy);border:1px solid var(--line);padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">${icon(s.icon||'plus',15)} ${s.label}</button>`).join('') : ''}
       <button id="${addAction}" style="display:flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border:none;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">${icon('plus',15)} ${addLabel}</button>
     </div>
   </div>`;
@@ -1725,6 +1725,63 @@ function renderRaci(){
       </div>` : ''}
     </div>
   `;
+}
+
+/* تقرير التراسل فقط بصيغة PDF — يستخدم نفس آلية الطباعة الحالية للتقارير (حفظ كـ PDF من نافذة الطباعة)، للقراءة فقط */
+function buildCorrReportHTML(){
+  const scopeLabel = state.activeTeam === 'all' ? 'كل الإدارات' : teamName(state.activeTeam);
+  const list = state.corr.filter(c => state.activeTeam==='all' || c.team===state.activeTeam).slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+  const active = list.filter(c=>c.status!=='done');
+  const done = list.filter(c=>c.status==='done');
+  const stat = (label, val, color) => `<div class="rpt-stat"><div style="font-size:10px;color:var(--muted);">${label}</div><div class="rpt-disp" style="font-size:18px;font-weight:800;color:${color};">${val}</div></div>`;
+  const badge = key => { const s = STATUS[key]; return s ? `<span class="rpt-badge" style="background:${s.color}1A;color:${s.color};">${s.label}</span>` : '—'; };
+  const rows = arr => arr.map(c=>{
+    const lt = linkedTaskFor(c);
+    return `<tr>
+      <td style="white-space:nowrap;">${esc(c.transactionNo||'—')}</td>
+      <td style="font-weight:700;color:var(--navy2);white-space:nowrap;">${esc(c.key)}</td>
+      <td>${esc(c.name)}</td>
+      <td style="white-space:nowrap;">${esc(teamName(c.team))}</td>
+      <td style="white-space:nowrap;">${esc(c.scope||'')} / ${esc(c.dir||'')}</td>
+      <td>${esc(c.referredTo||'—')}</td>
+      <td style="white-space:nowrap;">${esc(c.date||'')}</td>
+      <td>${badge(c.status)}</td>
+      <td style="white-space:nowrap;">${lt ? esc(lt.key) : '—'}</td>
+    </tr>`;
+  }).join("");
+  const table = (arr, emptyMsg) => `<table>
+    <thead><tr>${["رقم المعاملة","المرجع","اسم المعاملة","الإدارة","النوع","المحالة إليه","التاريخ","الحالة","مهمة RACI"].map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+    <tbody>${rows(arr) || `<tr><td colspan="9" style="text-align:center;color:var(--muted);">${emptyMsg}</td></tr>`}</tbody></table>`;
+  const now = new Date();
+  const genDate = now.toLocaleDateString('ar-SA', { year:'numeric', month:'long', day:'numeric' });
+  const genTime = now.toLocaleTimeString('ar-SA', { hour:'2-digit', minute:'2-digit' });
+  return `
+    <div class="rpt-wrap">
+      <div class="rpt-header">
+        <div class="rpt-disp" style="font-size:19px;font-weight:800;">معهد وتيرا — الإدارة التنفيذية</div>
+        <div style="font-size:12.5px;color:#B9C2D0;margin-top:4px;">تقرير التراسل</div>
+        <div style="font-size:11px;color:#B9C2D0;margin-top:8px;">نطاق التقرير: ${esc(scopeLabel)} · تاريخ الإنشاء: ${genDate} — ${genTime}</div>
+      </div>
+      <div class="rpt-stats">
+        ${stat("إجمالي المعاملات", list.length, "var(--navy2)")}
+        ${stat("نشطة", active.length, "var(--teal)")}
+        ${stat("منجزة", done.length, "var(--green)")}
+        ${stat("وارد", list.filter(c=>c.dir==='وارد').length, "var(--blue)")}
+        ${stat("صادر", list.filter(c=>c.dir==='صادر').length, "var(--teal)")}
+        ${stat("بدون ربط", list.filter(c=>!linkedTaskFor(c)).length, "var(--amber)")}
+      </div>
+      <div class="rpt-section-title">المعاملات النشطة (${active.length})</div>
+      ${table(active, "لا توجد معاملات نشطة")}
+      <div class="rpt-section-title">المعاملات المنجزة (${done.length})</div>
+      ${table(done, "لا توجد معاملات منجزة")}
+      <div class="rpt-footer">تم إنشاء هذا التقرير تلقائيًا من لوحة متابعة معهد وتيرا — ${genDate}</div>
+    </div>`;
+}
+function printCorrReport(){
+  const host = document.getElementById('wt-print-report');
+  if(!host) return;
+  host.innerHTML = buildCorrReportHTML();
+  window.print();
 }
 
 /* تقرير التراسل فقط — ملف Excel بورقتين (نشطة / منجزة) + ورقة ملخص، يقرأ من البيانات الحالية بالذاكرة ولا يعدّل أي بيانات */
@@ -1791,7 +1848,7 @@ function renderCorr(){
   const doneRows = doneCorr.map(corrRow).join("") || `<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--muted);">لا توجد معاملات منجزة بعد</td></tr>`;
 
   return `
-    ${toolbar("إضافة معاملة","addCorrBtn",{action:"exportCorrBtn",label:"تصدير تقرير التراسل (Excel)",icon:"download"})}
+    ${toolbar("إضافة معاملة","addCorrBtn",[{action:"printCorrBtn",label:"تقرير التراسل (PDF)",icon:"report"},{action:"exportCorrBtn",label:"Excel",icon:"download"}])}
     <div class="card" style="overflow:hidden;">
       <div class="scroller" style="overflow-x:auto;">
         <table><thead><tr>${headCols.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
@@ -3613,6 +3670,7 @@ function bindEvents(){
   }
   const addTaskBtn = document.getElementById('addTaskBtn'); if(addTaskBtn) addTaskBtn.addEventListener('click', ()=>openTaskForm());
   const addCorrBtn = document.getElementById('addCorrBtn'); if(addCorrBtn) addCorrBtn.addEventListener('click', ()=>openCorrForm());
+  const printCorrBtn = document.getElementById('printCorrBtn'); if(printCorrBtn) printCorrBtn.addEventListener('click', ()=>printCorrReport());
   const exportCorrBtn = document.getElementById('exportCorrBtn'); if(exportCorrBtn) exportCorrBtn.addEventListener('click', ()=>exportCorrReport());
   const addLabBtn = document.getElementById('addFacilityBtn_labs'); if(addLabBtn) addLabBtn.addEventListener('click', ()=>openFacilityForm("مختبر"));
   root.querySelectorAll('.editTaskBtn').forEach(btn=>{

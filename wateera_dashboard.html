@@ -1671,7 +1671,7 @@ function toolbar(addLabel, addAction, secondary){
       <input id="searchInput" type="text" value="${esc(state.search)}" placeholder="بحث بالاسم أو رقم المرجع..." style="padding-right:34px;">
     </div>
     <div style="display:flex;gap:8px;">
-      ${secondary ? `<button id="${secondary.action}" style="display:flex;align-items:center;gap:6px;background:#fff;color:var(--navy);border:1px solid var(--line);padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">${icon('plus',15)} ${secondary.label}</button>` : ''}
+      ${secondary ? `<button id="${secondary.action}" style="display:flex;align-items:center;gap:6px;background:#fff;color:var(--navy);border:1px solid var(--line);padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">${icon(secondary.icon||'plus',15)} ${secondary.label}</button>` : ''}
       <button id="${addAction}" style="display:flex;align-items:center;gap:6px;background:var(--navy);color:#fff;border:none;padding:9px 16px;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;">${icon('plus',15)} ${addLabel}</button>
     </div>
   </div>`;
@@ -1727,6 +1727,44 @@ function renderRaci(){
   `;
 }
 
+/* تقرير التراسل فقط — ملف Excel بورقتين (نشطة / منجزة) + ورقة ملخص، يقرأ من البيانات الحالية بالذاكرة ولا يعدّل أي بيانات */
+function exportCorrReport(){
+  const dirOrder = (a,b) => String(a.date||'').localeCompare(String(b.date||''));
+  const toRow = c => {
+    const lt = linkedTaskFor(c);
+    return [c.transactionNo||'', c.key||'', c.name||'', teamName(c.team), c.scope||'', c.dir||'', c.referredTo||'', c.date||'', (STATUS[c.status]||{}).label||c.status||'', lt ? lt.key : 'بدون ربط'];
+  };
+  const headers = ["رقم المعاملة","المرجع","اسم المعاملة","الفريق","داخلي/خارجي","صادر/وارد","المحالة إليه","التاريخ","الحالة","مهمة RACI المرتبطة"];
+  const all = state.corr.slice().sort(dirOrder);
+  const active = all.filter(c=>c.status!=='done');
+  const done = all.filter(c=>c.status==='done');
+  const wb = XLSX.utils.book_new();
+  const summary = [
+    ["تقرير التراسل — معهد وتيرا"],
+    ["تاريخ التقرير", todayISO()],
+    [],
+    ["إجمالي المعاملات", all.length],
+    ["النشطة (تحت الإجراء/معلقة)", active.length],
+    ["المنجزة", done.length],
+    ["الصادر", all.filter(c=>c.dir==='صادر').length],
+    ["الوارد", all.filter(c=>c.dir==='وارد').length],
+    ["بدون ربط بمهمة RACI", all.filter(c=>!linkedTaskFor(c)).length],
+  ];
+  const add = (name, rows) => {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:16},{wch:12},{wch:44},{wch:18},{wch:12},{wch:10},{wch:20},{wch:12},{wch:12},{wch:16}];
+    if(!ws['!views']) ws['!views'] = [];
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  };
+  const ws0 = XLSX.utils.aoa_to_sheet(summary); ws0['!cols'] = [{wch:34},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, ws0, "ملخص");
+  add("المعاملات النشطة", [headers, ...active.map(toRow)]);
+  add("المعاملات المنجزة", [headers, ...done.map(toRow)]);
+  if(!wb.Workbook) wb.Workbook = {};
+  wb.Workbook.Views = [{ RTL: true }];
+  XLSX.writeFile(wb, `تقرير_التراسل_${todayISO()}.xlsx`);
+}
+
 function corrRow(c){
   const lt = linkedTaskFor(c);
   return `<tr>
@@ -1753,7 +1791,7 @@ function renderCorr(){
   const doneRows = doneCorr.map(corrRow).join("") || `<tr><td colspan="10" style="padding:20px;text-align:center;color:var(--muted);">لا توجد معاملات منجزة بعد</td></tr>`;
 
   return `
-    ${toolbar("إضافة معاملة","addCorrBtn")}
+    ${toolbar("إضافة معاملة","addCorrBtn",{action:"exportCorrBtn",label:"تصدير تقرير التراسل (Excel)",icon:"download"})}
     <div class="card" style="overflow:hidden;">
       <div class="scroller" style="overflow-x:auto;">
         <table><thead><tr>${headCols.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
@@ -3575,6 +3613,7 @@ function bindEvents(){
   }
   const addTaskBtn = document.getElementById('addTaskBtn'); if(addTaskBtn) addTaskBtn.addEventListener('click', ()=>openTaskForm());
   const addCorrBtn = document.getElementById('addCorrBtn'); if(addCorrBtn) addCorrBtn.addEventListener('click', ()=>openCorrForm());
+  const exportCorrBtn = document.getElementById('exportCorrBtn'); if(exportCorrBtn) exportCorrBtn.addEventListener('click', ()=>exportCorrReport());
   const addLabBtn = document.getElementById('addFacilityBtn_labs'); if(addLabBtn) addLabBtn.addEventListener('click', ()=>openFacilityForm("مختبر"));
   root.querySelectorAll('.editTaskBtn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
